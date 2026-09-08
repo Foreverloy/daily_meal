@@ -1,0 +1,3015 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Daily Meal V1 API",
+    "version": "1.0.0",
+    "description": "个人饮食管理后端。业务时区默认 Asia/Shanghai。所有营养计算由 Go 完成，未知值保留 null。V1 不含登录或多用户。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "数据库健康检查",
+        "operationId": "get_healthz",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/api/v1/goal-settings/default": {
+      "get": {
+        "summary": "当前默认目标；首次设置前为 null",
+        "operationId": "get_api_v1_goal_settings_default",
+        "tags": [
+          "goal-settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Goal"
+                    }
+                  ],
+                  "nullable": true
+                },
+                "example": {
+                  "energy_kcal": 2000,
+                  "protein_percent": 30,
+                  "carbohydrate_percent": 40,
+                  "fat_percent": 30,
+                  "targets": {
+                    "energy_kcal": 2000,
+                    "protein_g": 150,
+                    "carbohydrate_g": 200,
+                    "fat_g": 66.66666666666667
+                  },
+                  "effective_on": "2026-09-08"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      },
+      "put": {
+        "summary": "从业务时区今天生效，保留历史版本",
+        "operationId": "put_api_v1_goal_settings_default",
+        "tags": [
+          "goal-settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Goal"
+                },
+                "example": {
+                  "energy_kcal": 2000,
+                  "protein_percent": 30,
+                  "carbohydrate_percent": 40,
+                  "fat_percent": 30,
+                  "targets": {
+                    "energy_kcal": 2000,
+                    "protein_g": 150,
+                    "carbohydrate_g": 200,
+                    "fat_g": 66.66666666666667
+                  },
+                  "effective_on": "2026-09-08"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalInput"
+              },
+              "example": {
+                "energy_kcal": 2000,
+                "protein_percent": 30,
+                "carbohydrate_percent": 40,
+                "fat_percent": 30
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/daily-goals/{date}": {
+      "get": {
+        "summary": "解析日期目标",
+        "operationId": "get_api_v1_daily_goals_date",
+        "tags": [
+          "daily-goals"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedGoal"
+                },
+                "example": {
+                  "date": "2026-09-08",
+                  "source": "default",
+                  "goal": {
+                    "energy_kcal": 2000,
+                    "protein_percent": 30,
+                    "carbohydrate_percent": 40,
+                    "fat_percent": 30,
+                    "targets": {
+                      "energy_kcal": 2000,
+                      "protein_g": 150,
+                      "carbohydrate_g": 200,
+                      "fat_g": 66.66666666666667
+                    },
+                    "effective_on": "2026-09-08"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-09-08"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "设置日期覆盖",
+        "operationId": "put_api_v1_daily_goals_date",
+        "tags": [
+          "daily-goals"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedGoal"
+                },
+                "example": {
+                  "date": "2026-09-08",
+                  "source": "default",
+                  "goal": {
+                    "energy_kcal": 2000,
+                    "protein_percent": 30,
+                    "carbohydrate_percent": 40,
+                    "fat_percent": 30,
+                    "targets": {
+                      "energy_kcal": 2000,
+                      "protein_g": 150,
+                      "carbohydrate_g": 200,
+                      "fat_g": 66.66666666666667
+                    },
+                    "effective_on": "2026-09-08"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-09-08"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalInput"
+              },
+              "example": {
+                "energy_kcal": 2000,
+                "protein_percent": 30,
+                "carbohydrate_percent": 40,
+                "fat_percent": 30
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除覆盖，恢复该日默认（幂等）",
+        "operationId": "delete_api_v1_daily_goals_date",
+        "tags": [
+          "daily-goals"
+        ],
+        "responses": {
+          "204": {
+            "description": "成功"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-09-08"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/foods": {
+      "get": {
+        "summary": "名称搜索和分页列表",
+        "operationId": "get_api_v1_foods",
+        "tags": [
+          "foods"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "created_at": "2026-09-08T04:00:00Z",
+                      "updated_at": "2026-09-08T04:00:00Z",
+                      "name": "牛奶",
+                      "basis_unit": "ml",
+                      "nutrition_per_100": {
+                        "energy_kcal": 60,
+                        "protein_g": 3,
+                        "carbohydrate_g": 5,
+                        "fat_g": 3,
+                        "sodium_mg": null,
+                        "calcium_mg": null,
+                        "vitamin_c_mg": null,
+                        "vitamin_d_ug": null
+                      }
+                    }
+                  ],
+                  "page": 1,
+                  "page_size": 20,
+                  "total": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "创建Food",
+        "operationId": "post_api_v1_foods",
+        "tags": [
+          "foods"
+        ],
+        "responses": {
+          "201": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Food"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "牛奶",
+                  "basis_unit": "ml",
+                  "nutrition_per_100": {
+                    "energy_kcal": 60,
+                    "protein_g": 3,
+                    "carbohydrate_g": 5,
+                    "fat_g": 3,
+                    "sodium_mg": null,
+                    "calcium_mg": null,
+                    "vitamin_c_mg": null,
+                    "vitamin_d_ug": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodInput"
+              },
+              "example": {
+                "name": "牛奶",
+                "basis_unit": "ml",
+                "nutrition_per_100": {
+                  "energy_kcal": 60,
+                  "protein_g": 3,
+                  "carbohydrate_g": 5,
+                  "fat_g": 3,
+                  "sodium_mg": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/foods/{id}": {
+      "get": {
+        "summary": "查询Food",
+        "operationId": "get_api_v1_foods_id",
+        "tags": [
+          "foods"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Food"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "牛奶",
+                  "basis_unit": "ml",
+                  "nutrition_per_100": {
+                    "energy_kcal": 60,
+                    "protein_g": 3,
+                    "carbohydrate_g": 5,
+                    "fat_g": 3,
+                    "sodium_mg": null,
+                    "calcium_mg": null,
+                    "vitamin_c_mg": null,
+                    "vitamin_d_ug": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "更新Food",
+        "operationId": "patch_api_v1_foods_id",
+        "tags": [
+          "foods"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Food"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "牛奶",
+                  "basis_unit": "ml",
+                  "nutrition_per_100": {
+                    "energy_kcal": 60,
+                    "protein_g": 3,
+                    "carbohydrate_g": 5,
+                    "fat_g": 3,
+                    "sodium_mg": null,
+                    "calcium_mg": null,
+                    "vitamin_c_mg": null,
+                    "vitamin_d_ug": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodPatch"
+              },
+              "example": {
+                "nutrition_per_100": {
+                  "protein_g": 3.2,
+                  "sodium_mg": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recipes": {
+      "get": {
+        "summary": "名称搜索和分页列表",
+        "operationId": "get_api_v1_recipes",
+        "tags": [
+          "recipes"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "created_at": "2026-09-08T04:00:00Z",
+                      "updated_at": "2026-09-08T04:00:00Z",
+                      "name": "热牛奶",
+                      "ingredients": [
+                        {
+                          "food_id": 1,
+                          "name": "牛奶",
+                          "basis_unit": "ml",
+                          "quantity": 250,
+                          "nutrition_per_100": {
+                            "energy_kcal": 60,
+                            "protein_g": 3,
+                            "carbohydrate_g": 5,
+                            "fat_g": 3,
+                            "sodium_mg": null,
+                            "calcium_mg": null,
+                            "vitamin_c_mg": null,
+                            "vitamin_d_ug": null
+                          }
+                        }
+                      ],
+                      "nutrition_totals": {
+                        "energy_kcal": {
+                          "known_total": 150.0,
+                          "complete": true
+                        },
+                        "protein_g": {
+                          "known_total": 7.5,
+                          "complete": true
+                        },
+                        "carbohydrate_g": {
+                          "known_total": 12.5,
+                          "complete": true
+                        },
+                        "fat_g": {
+                          "known_total": 7.5,
+                          "complete": true
+                        },
+                        "sodium_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "calcium_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "vitamin_c_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "vitamin_d_ug": {
+                          "known_total": null,
+                          "complete": false
+                        }
+                      }
+                    }
+                  ],
+                  "page": 1,
+                  "page_size": 20,
+                  "total": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "创建Recipe",
+        "operationId": "post_api_v1_recipes",
+        "tags": [
+          "recipes"
+        ],
+        "responses": {
+          "201": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipe"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "热牛奶",
+                  "ingredients": [
+                    {
+                      "food_id": 1,
+                      "name": "牛奶",
+                      "basis_unit": "ml",
+                      "quantity": 250,
+                      "nutrition_per_100": {
+                        "energy_kcal": 60,
+                        "protein_g": 3,
+                        "carbohydrate_g": 5,
+                        "fat_g": 3,
+                        "sodium_mg": null,
+                        "calcium_mg": null,
+                        "vitamin_c_mg": null,
+                        "vitamin_d_ug": null
+                      }
+                    }
+                  ],
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeInput"
+              },
+              "example": {
+                "name": "燕麦牛奶",
+                "ingredients": [
+                  {
+                    "food_id": 1,
+                    "quantity": 0.25,
+                    "unit": "L"
+                  },
+                  {
+                    "food_id": 2,
+                    "quantity": 50,
+                    "unit": "g"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recipes/{id}": {
+      "get": {
+        "summary": "查询Recipe",
+        "operationId": "get_api_v1_recipes_id",
+        "tags": [
+          "recipes"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipe"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "热牛奶",
+                  "ingredients": [
+                    {
+                      "food_id": 1,
+                      "name": "牛奶",
+                      "basis_unit": "ml",
+                      "quantity": 250,
+                      "nutrition_per_100": {
+                        "energy_kcal": 60,
+                        "protein_g": 3,
+                        "carbohydrate_g": 5,
+                        "fat_g": 3,
+                        "sodium_mg": null,
+                        "calcium_mg": null,
+                        "vitamin_c_mg": null,
+                        "vitamin_d_ug": null
+                      }
+                    }
+                  ],
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "更新Recipe",
+        "operationId": "put_api_v1_recipes_id",
+        "tags": [
+          "recipes"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipe"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "name": "热牛奶",
+                  "ingredients": [
+                    {
+                      "food_id": 1,
+                      "name": "牛奶",
+                      "basis_unit": "ml",
+                      "quantity": 250,
+                      "nutrition_per_100": {
+                        "energy_kcal": 60,
+                        "protein_g": 3,
+                        "carbohydrate_g": 5,
+                        "fat_g": 3,
+                        "sodium_mg": null,
+                        "calcium_mg": null,
+                        "vitamin_c_mg": null,
+                        "vitamin_d_ug": null
+                      }
+                    }
+                  ],
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeInput"
+              },
+              "example": {
+                "name": "燕麦牛奶",
+                "ingredients": [
+                  {
+                    "food_id": 1,
+                    "quantity": 0.25,
+                    "unit": "L"
+                  },
+                  {
+                    "food_id": 2,
+                    "quantity": 50,
+                    "unit": "g"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meal-entries": {
+      "get": {
+        "summary": "查询指定日期饮食记录",
+        "operationId": "get_api_v1_meal_entries",
+        "tags": [
+          "meal-entries"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "created_at": "2026-09-08T04:00:00Z",
+                      "updated_at": "2026-09-08T04:00:00Z",
+                      "date": "2026-09-08",
+                      "meal_type": "lunch",
+                      "item_type": "food",
+                      "food_id": 1,
+                      "recipe_id": null,
+                      "quantity": 250,
+                      "snapshot": {
+                        "name": "牛奶",
+                        "basis_unit": "ml",
+                        "nutrition_per_100": {
+                          "energy_kcal": 60,
+                          "protein_g": 3,
+                          "carbohydrate_g": 5,
+                          "fat_g": 3,
+                          "sodium_mg": null,
+                          "calcium_mg": null,
+                          "vitamin_c_mg": null,
+                          "vitamin_d_ug": null
+                        }
+                      },
+                      "nutrition_totals": {
+                        "energy_kcal": {
+                          "known_total": 150.0,
+                          "complete": true
+                        },
+                        "protein_g": {
+                          "known_total": 7.5,
+                          "complete": true
+                        },
+                        "carbohydrate_g": {
+                          "known_total": 12.5,
+                          "complete": true
+                        },
+                        "fat_g": {
+                          "known_total": 7.5,
+                          "complete": true
+                        },
+                        "sodium_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "calcium_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "vitamin_c_mg": {
+                          "known_total": null,
+                          "complete": false
+                        },
+                        "vitamin_d_ug": {
+                          "known_total": null,
+                          "complete": false
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-09-08"
+            }
+          },
+          {
+            "name": "meal_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ]
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "保存饮食快照",
+        "operationId": "post_api_v1_meal_entries",
+        "tags": [
+          "meal-entries"
+        ],
+        "responses": {
+          "201": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "date": "2026-09-08",
+                  "meal_type": "lunch",
+                  "item_type": "food",
+                  "food_id": 1,
+                  "recipe_id": null,
+                  "quantity": 250,
+                  "snapshot": {
+                    "name": "牛奶",
+                    "basis_unit": "ml",
+                    "nutrition_per_100": {
+                      "energy_kcal": 60,
+                      "protein_g": 3,
+                      "carbohydrate_g": 5,
+                      "fat_g": 3,
+                      "sodium_mg": null,
+                      "calcium_mg": null,
+                      "vitamin_c_mg": null,
+                      "vitamin_d_ug": null
+                    }
+                  },
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryInput"
+              },
+              "example": {
+                "date": "2026-09-08",
+                "meal_type": "lunch",
+                "item_type": "recipe",
+                "recipe_id": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meal-entries/{id}": {
+      "get": {
+        "summary": "查询历史饮食快照",
+        "operationId": "get_api_v1_meal_entries_id",
+        "tags": [
+          "meal-entries"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "date": "2026-09-08",
+                  "meal_type": "lunch",
+                  "item_type": "food",
+                  "food_id": 1,
+                  "recipe_id": null,
+                  "quantity": 250,
+                  "snapshot": {
+                    "name": "牛奶",
+                    "basis_unit": "ml",
+                    "nutrition_per_100": {
+                      "energy_kcal": 60,
+                      "protein_g": 3,
+                      "carbohydrate_g": 5,
+                      "fat_g": 3,
+                      "sodium_mg": null,
+                      "calcium_mg": null,
+                      "vitamin_c_mg": null,
+                      "vitamin_d_ug": null
+                    }
+                  },
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "修改饮食记录",
+        "operationId": "patch_api_v1_meal_entries_id",
+        "tags": [
+          "meal-entries"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                },
+                "example": {
+                  "id": 1,
+                  "created_at": "2026-09-08T04:00:00Z",
+                  "updated_at": "2026-09-08T04:00:00Z",
+                  "date": "2026-09-08",
+                  "meal_type": "lunch",
+                  "item_type": "food",
+                  "food_id": 1,
+                  "recipe_id": null,
+                  "quantity": 250,
+                  "snapshot": {
+                    "name": "牛奶",
+                    "basis_unit": "ml",
+                    "nutrition_per_100": {
+                      "energy_kcal": 60,
+                      "protein_g": 3,
+                      "carbohydrate_g": 5,
+                      "fat_g": 3,
+                      "sodium_mg": null,
+                      "calcium_mg": null,
+                      "vitamin_c_mg": null,
+                      "vitamin_d_ug": null
+                    }
+                  },
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryPatch"
+              },
+              "example": {
+                "quantity": 150
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除饮食记录",
+        "operationId": "delete_api_v1_meal_entries_id",
+        "tags": [
+          "meal-entries"
+        ],
+        "responses": {
+          "204": {
+            "description": "成功"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/daily-summary": {
+      "get": {
+        "summary": "目标、三餐、全天营养及剩余额度",
+        "operationId": "get_api_v1_daily_summary",
+        "tags": [
+          "daily-summary"
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                },
+                "example": {
+                  "date": "2026-09-08",
+                  "goal": {
+                    "date": "2026-09-08",
+                    "source": "default",
+                    "goal": {
+                      "energy_kcal": 2000,
+                      "protein_percent": 30,
+                      "carbohydrate_percent": 40,
+                      "fat_percent": 30,
+                      "targets": {
+                        "energy_kcal": 2000,
+                        "protein_g": 150,
+                        "carbohydrate_g": 200,
+                        "fat_g": 66.66666666666667
+                      },
+                      "effective_on": "2026-09-08"
+                    }
+                  },
+                  "meals": {
+                    "breakfast": {
+                      "energy_kcal": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "protein_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "carbohydrate_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "fat_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "sodium_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "calcium_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "vitamin_c_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "vitamin_d_ug": {
+                        "known_total": 0,
+                        "complete": true
+                      }
+                    },
+                    "lunch": {
+                      "energy_kcal": {
+                        "known_total": 150.0,
+                        "complete": true
+                      },
+                      "protein_g": {
+                        "known_total": 7.5,
+                        "complete": true
+                      },
+                      "carbohydrate_g": {
+                        "known_total": 12.5,
+                        "complete": true
+                      },
+                      "fat_g": {
+                        "known_total": 7.5,
+                        "complete": true
+                      },
+                      "sodium_mg": {
+                        "known_total": null,
+                        "complete": false
+                      },
+                      "calcium_mg": {
+                        "known_total": null,
+                        "complete": false
+                      },
+                      "vitamin_c_mg": {
+                        "known_total": null,
+                        "complete": false
+                      },
+                      "vitamin_d_ug": {
+                        "known_total": null,
+                        "complete": false
+                      }
+                    },
+                    "dinner": {
+                      "energy_kcal": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "protein_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "carbohydrate_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "fat_g": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "sodium_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "calcium_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "vitamin_c_mg": {
+                        "known_total": 0,
+                        "complete": true
+                      },
+                      "vitamin_d_ug": {
+                        "known_total": 0,
+                        "complete": true
+                      }
+                    }
+                  },
+                  "nutrition_totals": {
+                    "energy_kcal": {
+                      "known_total": 150.0,
+                      "complete": true
+                    },
+                    "protein_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "carbohydrate_g": {
+                      "known_total": 12.5,
+                      "complete": true
+                    },
+                    "fat_g": {
+                      "known_total": 7.5,
+                      "complete": true
+                    },
+                    "sodium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "calcium_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_c_mg": {
+                      "known_total": null,
+                      "complete": false
+                    },
+                    "vitamin_d_ug": {
+                      "known_total": null,
+                      "complete": false
+                    }
+                  },
+                  "comparison": {
+                    "energy_kcal": {
+                      "target": 2000,
+                      "intake": {
+                        "known_total": 150.0,
+                        "complete": true
+                      },
+                      "remaining": 1850.0
+                    },
+                    "protein_g": {
+                      "target": 150,
+                      "intake": {
+                        "known_total": 7.5,
+                        "complete": true
+                      },
+                      "remaining": 142.5
+                    },
+                    "carbohydrate_g": {
+                      "target": 200,
+                      "intake": {
+                        "known_total": 12.5,
+                        "complete": true
+                      },
+                      "remaining": 187.5
+                    },
+                    "fat_g": {
+                      "target": 66.66666666666667,
+                      "intake": {
+                        "known_total": 7.5,
+                        "complete": true
+                      },
+                      "remaining": 59.16666666666667
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-09-08"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Nutrition": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 kcal。null 表示未知。"
+          },
+          "protein_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "carbohydrate_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "fat_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "sodium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "calcium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_c_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_d_ug": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 µg。null 表示未知。"
+          }
+        },
+        "required": [
+          "energy_kcal",
+          "protein_g",
+          "carbohydrate_g",
+          "fat_g",
+          "sodium_mg",
+          "calcium_mg",
+          "vitamin_c_mg",
+          "vitamin_d_ug"
+        ],
+        "additionalProperties": false
+      },
+      "NutritionInput": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 kcal。null 表示未知。"
+          },
+          "protein_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "carbohydrate_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "fat_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "sodium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "calcium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_c_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_d_ug": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 µg。null 表示未知。"
+          }
+        },
+        "required": [
+          "energy_kcal"
+        ],
+        "additionalProperties": false
+      },
+      "NutritionPatch": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 kcal。null 表示未知。"
+          },
+          "protein_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "carbohydrate_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "fat_g": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 g。null 表示未知。"
+          },
+          "sodium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "calcium_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_c_mg": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 mg。null 表示未知。"
+          },
+          "vitamin_d_ug": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "minimum": 0,
+            "description": "每 100g/ml 含量，单位 µg。null 表示未知。"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "Amount": {
+        "type": "object",
+        "properties": {
+          "known_total": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "known_total",
+          "complete"
+        ],
+        "additionalProperties": false,
+        "description": "全部未知时 known_total=null；部分已知返回已知合计且 complete=false；没有记录时为 0/true。"
+      },
+      "Totals": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "protein_g": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "carbohydrate_g": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "fat_g": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "sodium_mg": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "calcium_mg": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "vitamin_c_mg": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "vitamin_d_ug": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "energy_kcal",
+          "protein_g",
+          "carbohydrate_g",
+          "fat_g",
+          "sodium_mg",
+          "calcium_mg",
+          "vitamin_c_mg",
+          "vitamin_d_ug"
+        ],
+        "additionalProperties": false
+      },
+      "GoalInput": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "protein_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "carbohydrate_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "fat_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "energy_kcal",
+          "protein_percent",
+          "carbohydrate_percent",
+          "fat_percent"
+        ],
+        "additionalProperties": false,
+        "description": "供能百分比合计为 100，克数按蛋白质/碳水 4 kcal/g、脂肪 9 kcal/g 推导。"
+      },
+      "Targets": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double"
+          },
+          "protein_g": {
+            "type": "number",
+            "format": "double"
+          },
+          "carbohydrate_g": {
+            "type": "number",
+            "format": "double"
+          },
+          "fat_g": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": [
+          "energy_kcal",
+          "protein_g",
+          "carbohydrate_g",
+          "fat_g"
+        ],
+        "additionalProperties": false
+      },
+      "Goal": {
+        "type": "object",
+        "properties": {
+          "energy_kcal": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "protein_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "carbohydrate_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "fat_percent": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "targets": {
+            "$ref": "#/components/schemas/Targets"
+          },
+          "effective_on": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          }
+        },
+        "required": [
+          "energy_kcal",
+          "protein_percent",
+          "carbohydrate_percent",
+          "fat_percent",
+          "targets"
+        ],
+        "additionalProperties": false
+      },
+      "ResolvedGoal": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "override",
+              "none"
+            ]
+          },
+          "goal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Goal"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "date",
+          "source",
+          "goal"
+        ],
+        "additionalProperties": false
+      },
+      "Food": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "basis_unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "ml"
+            ]
+          },
+          "nutrition_per_100": {
+            "$ref": "#/components/schemas/Nutrition"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "updated_at",
+          "name",
+          "basis_unit",
+          "nutrition_per_100"
+        ],
+        "additionalProperties": false
+      },
+      "FoodInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "basis_unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "ml"
+            ]
+          },
+          "nutrition_per_100": {
+            "$ref": "#/components/schemas/NutritionInput"
+          }
+        },
+        "required": [
+          "name",
+          "basis_unit",
+          "nutrition_per_100"
+        ],
+        "additionalProperties": false
+      },
+      "FoodPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "nutrition_per_100": {
+            "$ref": "#/components/schemas/NutritionPatch"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "只更新提供的字段；营养对象逐字段合并，可选营养显式 null 清空，热量不可为空；basis_unit 创建后不可修改。"
+      },
+      "IngredientInput": {
+        "type": "object",
+        "properties": {
+          "food_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "L"
+            ]
+          }
+        },
+        "required": [
+          "food_id",
+          "quantity",
+          "unit"
+        ],
+        "additionalProperties": false
+      },
+      "IngredientSnapshot": {
+        "type": "object",
+        "properties": {
+          "food_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "basis_unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "ml"
+            ]
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "nutrition_per_100": {
+            "$ref": "#/components/schemas/Nutrition"
+          }
+        },
+        "required": [
+          "food_id",
+          "name",
+          "basis_unit",
+          "quantity",
+          "nutrition_per_100"
+        ],
+        "additionalProperties": false
+      },
+      "RecipeInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientInput"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "name",
+          "ingredients"
+        ],
+        "additionalProperties": false
+      },
+      "Recipe": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientSnapshot"
+            }
+          },
+          "nutrition_totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "updated_at",
+          "name",
+          "ingredients",
+          "nutrition_totals"
+        ],
+        "additionalProperties": false,
+        "description": "使用当前食物数据计算整道菜营养；quantity 为归一化 g/ml。"
+      },
+      "FoodSnapshot": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "basis_unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "ml"
+            ]
+          },
+          "nutrition_per_100": {
+            "$ref": "#/components/schemas/Nutrition"
+          }
+        },
+        "required": [
+          "name",
+          "basis_unit",
+          "nutrition_per_100"
+        ],
+        "additionalProperties": false
+      },
+      "RecipeSnapshot": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngredientSnapshot"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "name",
+          "ingredients"
+        ],
+        "additionalProperties": false
+      },
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "meal_type": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ]
+          },
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "food",
+              "recipe"
+            ]
+          },
+          "food_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true
+          },
+          "recipe_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "snapshot": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FoodSnapshot"
+              },
+              {
+                "$ref": "#/components/schemas/RecipeSnapshot"
+              }
+            ]
+          },
+          "nutrition_totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "updated_at",
+          "date",
+          "meal_type",
+          "item_type",
+          "food_id",
+          "recipe_id",
+          "quantity",
+          "snapshot",
+          "nutrition_totals"
+        ],
+        "additionalProperties": false,
+        "description": "食物 quantity 为 g/ml，单位见 snapshot.basis_unit。菜品 food_id/quantity 为 null，整道计入；历史名称与营养读取 snapshot。"
+      },
+      "FoodEntryInput": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "meal_type": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ]
+          },
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "food"
+            ]
+          },
+          "food_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "L"
+            ]
+          }
+        },
+        "required": [
+          "meal_type",
+          "item_type",
+          "food_id",
+          "quantity",
+          "unit"
+        ],
+        "additionalProperties": false
+      },
+      "RecipeEntryInput": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "meal_type": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ]
+          },
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "recipe"
+            ]
+          },
+          "recipe_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "meal_type",
+          "item_type",
+          "recipe_id"
+        ],
+        "additionalProperties": false
+      },
+      "EntryInput": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/FoodEntryInput"
+          },
+          {
+            "$ref": "#/components/schemas/RecipeEntryInput"
+          }
+        ],
+        "description": "date 省略使用业务时区今天。菜品不接受 quantity/unit。"
+      },
+      "EntryPatch": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "meal_type": {
+            "type": "string",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ]
+          },
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "food",
+              "recipe"
+            ]
+          },
+          "food_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "recipe_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "L"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "字段省略保留，不接受 null。只改日期/餐次保持快照；同一食物只改 quantity 使用原快照且默认原基准单位；提供 unit 必须同时给 quantity。更换食物须给 food_id、quantity、unit；跨类型时须给 item_type 和新引用 ID，旧引用自动清空，不要提交旧引用。同一 ID 不刷新快照。"
+      },
+      "Comparison": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "intake": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "remaining": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "required": [
+          "target",
+          "intake",
+          "remaining"
+        ],
+        "additionalProperties": false,
+        "description": "仅目标存在且摄入完整时 remaining=target-known_total；允许负数。"
+      },
+      "Summary": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-08"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/ResolvedGoal"
+          },
+          "meals": {
+            "type": "object",
+            "properties": {
+              "breakfast": {
+                "$ref": "#/components/schemas/Totals"
+              },
+              "lunch": {
+                "$ref": "#/components/schemas/Totals"
+              },
+              "dinner": {
+                "$ref": "#/components/schemas/Totals"
+              }
+            },
+            "required": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ],
+            "additionalProperties": false
+          },
+          "nutrition_totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "comparison": {
+            "type": "object",
+            "properties": {
+              "energy_kcal": {
+                "$ref": "#/components/schemas/Comparison"
+              },
+              "protein_g": {
+                "$ref": "#/components/schemas/Comparison"
+              },
+              "carbohydrate_g": {
+                "$ref": "#/components/schemas/Comparison"
+              },
+              "fat_g": {
+                "$ref": "#/components/schemas/Comparison"
+              }
+            },
+            "required": [
+              "energy_kcal",
+              "protein_g",
+              "carbohydrate_g",
+              "fat_g"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "date",
+          "goal",
+          "meals",
+          "nutrition_totals",
+          "comparison"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "bad_request",
+                  "validation_error",
+                  "not_found",
+                  "internal_error"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "fields"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "FoodList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Food"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "RecipeList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Recipe"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "EntryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "JSON 格式、字段或类型错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "bad_request",
+                "message": "JSON 格式、字段或类型错误",
+                "fields": {}
+              }
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "资源不存在",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "message": "资源不存在",
+                "fields": {}
+              }
+            }
+          }
+        }
+      },
+      "Error422": {
+        "description": "业务参数不合法",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "validation_error",
+                "message": "业务参数不合法",
+                "fields": {
+                  "quantity": "数量必须大于 0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error500": {
+        "description": "内部错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "internal_error",
+                "message": "内部错误",
+                "fields": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
