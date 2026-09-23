@@ -51,3 +51,4 @@ V1 先实现 Go 后端。后续接入 Python Agent，通过截图维护食物，
 - 提交标题格式为 `<type>[可选 scope][可选 !]: <description>`；新增功能使用 `feat`，修复问题使用 `fix`，其他改动按实际性质使用 `refactor`、`docs`、`test`、`chore` 等类型。
 - 描述应简明说明实际改动；需要正文时，与标题之间空一行，补充原因、行为变化或验证结果。
 - 破坏性变更必须通过标题中的 `!` 或脚注 `BREAKING CHANGE:` 明确标记。
+- 由 Codex 创建的提交，必须在提交信息末尾添加 `Co-authored-by: Codex <codex@openai.com>` 脚注，与前面的标题或正文之间空一行；直接写入完整脚注，不依赖 `@codex` 标记或本地 Git hook。
