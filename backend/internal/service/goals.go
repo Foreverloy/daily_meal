@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"math"
 
@@ -52,8 +51,8 @@ func goalView(values model.GoalValues, effectiveOn *model.Date) *GoalView {
 	return &GoalView{GoalValues: values, Targets: values.Targets(), EffectiveOn: effectiveOn}
 }
 
-func (s *Service) DefaultGoal(ctx context.Context) (*GoalView, error) {
-	goal, err := s.store.DefaultGoal(ctx, s.Today())
+func (s *Service) DefaultGoal() (*GoalView, error) {
+	goal, err := s.store.DefaultGoal(s.Today())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -63,21 +62,21 @@ func (s *Service) DefaultGoal(ctx context.Context) (*GoalView, error) {
 	return goalView(goal.GoalValues, &goal.EffectiveOn), nil
 }
 
-func (s *Service) PutDefaultGoal(ctx context.Context, in GoalInput) (*GoalView, error) {
+func (s *Service) PutDefaultGoal(in GoalInput) (*GoalView, error) {
 	values, err := in.values()
 	if err != nil {
 		return nil, err
 	}
 	goal := model.GoalSetting{EffectiveOn: s.Today(), GoalValues: values}
-	if err := s.store.PutDefaultGoal(ctx, &goal); err != nil {
+	if err := s.store.PutDefaultGoal(&goal); err != nil {
 		return nil, err
 	}
 	return goalView(goal.GoalValues, &goal.EffectiveOn), nil
 }
 
-func (s *Service) resolveGoal(ctx context.Context, date model.Date) (ResolvedGoal, error) {
+func (s *Service) resolveGoal(date model.Date) (ResolvedGoal, error) {
 	result := ResolvedGoal{Date: date, Source: "none"}
-	override, err := s.store.DailyGoal(ctx, date)
+	override, err := s.store.DailyGoal(date)
 	if err == nil {
 		result.Source = "override"
 		result.Goal = goalView(override.GoalValues, nil)
@@ -86,7 +85,7 @@ func (s *Service) resolveGoal(ctx context.Context, date model.Date) (ResolvedGoa
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return result, err
 	}
-	def, err := s.store.DefaultGoal(ctx, date)
+	def, err := s.store.DefaultGoal(date)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return result, nil
 	}
@@ -98,17 +97,17 @@ func (s *Service) resolveGoal(ctx context.Context, date model.Date) (ResolvedGoa
 	return result, nil
 }
 
-func (s *Service) DailyGoal(ctx context.Context, rawDate string) (ResolvedGoal, error) {
+func (s *Service) DailyGoal(rawDate string) (ResolvedGoal, error) {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return ResolvedGoal{}, err
 	}
 	var result ResolvedGoal
-	err = s.transaction(ctx, func(tx *Service) error { var err error; result, err = tx.resolveGoal(ctx, date); return err })
+	err = s.transaction(func(tx *Service) error { var err error; result, err = tx.resolveGoal(date); return err })
 	return result, err
 }
 
-func (s *Service) PutDailyGoal(ctx context.Context, rawDate string, in GoalInput) (ResolvedGoal, error) {
+func (s *Service) PutDailyGoal(rawDate string, in GoalInput) (ResolvedGoal, error) {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return ResolvedGoal{}, err
@@ -118,16 +117,16 @@ func (s *Service) PutDailyGoal(ctx context.Context, rawDate string, in GoalInput
 		return ResolvedGoal{}, err
 	}
 	goal := model.DailyGoal{Date: date, GoalValues: values}
-	if err := s.store.PutDailyGoal(ctx, &goal); err != nil {
+	if err := s.store.PutDailyGoal(&goal); err != nil {
 		return ResolvedGoal{}, err
 	}
 	return ResolvedGoal{Date: date, Source: "override", Goal: goalView(values, nil)}, nil
 }
 
-func (s *Service) DeleteDailyGoal(ctx context.Context, rawDate string) error {
+func (s *Service) DeleteDailyGoal(rawDate string) error {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return err
 	}
-	return s.store.DeleteDailyGoal(ctx, date)
+	return s.store.DeleteDailyGoal(date)
 }

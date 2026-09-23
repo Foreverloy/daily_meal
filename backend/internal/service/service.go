@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"time"
@@ -47,8 +46,8 @@ func resourceError(err error) error {
 }
 
 // All multi-query reads use one PostgreSQL snapshot, including recipe food preloads.
-func (s *Service) transaction(ctx context.Context, fn func(*Service) error) error {
-	return s.store.Transaction(ctx, func(tx *store.Store) error {
+func (s *Service) transaction(fn func(*Service) error) error {
+	return s.store.Transaction(func(tx *store.Store) error {
 		return fn(&Service{store: tx, location: s.location, now: s.now})
 	})
 }

@@ -415,14 +415,6 @@ func TestIntegrationEntryValidationAndRollback(t *testing.T) {
 	}
 	f.request(t, "GET", "/api/v1/meal-entries?date=2026-09-08&meal_type=snack", nil, 422)
 	f.request(t, "GET", "/api/v1/daily-summary", nil, 422)
-	// A cancelled request must not make a new database write.
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	svc := service.New(store.New(f.db), time.UTC, time.Now)
-	_, err := svc.CreateFood(ctx, service.FoodInput{Name: "cancelled", BasisUnit: "g", NutritionPer100: nutrition.Values{"energy_kcal": nutrition.Number(1)}})
-	if err == nil {
-		t.Fatal("cancelled operation succeeded")
-	}
 }
 
 func TestIntegrationRecipeRollbackAfterWrite(t *testing.T) {

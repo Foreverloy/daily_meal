@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 
 	"dailymeal/backend/internal/model"
@@ -21,12 +20,12 @@ type EntryInput struct {
 
 func validMeal(meal string) bool { return meal == "breakfast" || meal == "lunch" || meal == "dinner" }
 
-func (s *Service) Entry(ctx context.Context, id int64) (*model.MealEntry, error) {
-	entry, err := s.store.Entry(ctx, id, false)
+func (s *Service) Entry(id int64) (*model.MealEntry, error) {
+	entry, err := s.store.Entry(id, false)
 	return entry, resourceError(err)
 }
 
-func (s *Service) Entries(ctx context.Context, rawDate, meal string) ([]model.MealEntry, error) {
+func (s *Service) Entries(rawDate, meal string) ([]model.MealEntry, error) {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return nil, err
@@ -34,27 +33,27 @@ func (s *Service) Entries(ctx context.Context, rawDate, meal string) ([]model.Me
 	if meal != "" && !validMeal(meal) {
 		return nil, Invalid("meal_type", "餐次须为 breakfast、lunch 或 dinner")
 	}
-	return s.store.Entries(ctx, date, meal)
+	return s.store.Entries(date, meal)
 }
 
-func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
-	return resourceError(s.store.DeleteEntry(ctx, id))
+func (s *Service) DeleteEntry(id int64) error {
+	return resourceError(s.store.DeleteEntry(id))
 }
 
 // SaveEntry uses id=0 for creation. Metadata/quantity edits reuse the original snapshot;
 // only selecting a different item reads the current food or recipe.
-func (s *Service) SaveEntry(ctx context.Context, id int64, in EntryInput) (*model.MealEntry, error) {
+func (s *Service) SaveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
 	for key, null := range map[string]bool{"date": in.Date.Null, "meal_type": in.MealType.Null, "item_type": in.ItemType.Null, "food_id": in.FoodID.Null, "recipe_id": in.RecipeID.Null, "quantity": in.Quantity.Null, "unit": in.Unit.Null} {
 		if null {
 			return nil, Invalid(key, "不能为 null；未修改的字段请省略")
 		}
 	}
 	var result *model.MealEntry
-	err := s.transaction(ctx, func(tx *Service) error {
+	err := s.transaction(func(tx *Service) error {
 		entry := &model.MealEntry{Date: tx.Today()}
 		if id != 0 {
 			var err error
-			entry, err = tx.store.Entry(ctx, id, true)
+			entry, err = tx.store.Entry(id, true)
 			if err != nil {
 				return resourceError(err)
 			}
@@ -80,9 +79,9 @@ func (s *Service) SaveEntry(ctx context.Context, id int64, in EntryInput) (*mode
 		var err error
 		switch entry.ItemType {
 		case "food":
-			err = tx.applyFoodEntry(ctx, entry, in, newItem)
+			err = tx.applyFoodEntry(entry, in, newItem)
 		case "recipe":
-			err = tx.applyRecipeEntry(ctx, entry, in, newItem)
+			err = tx.applyRecipeEntry(entry, in, newItem)
 		default:
 			return Invalid("item_type", "类型须为 food 或 recipe")
 		}
@@ -91,14 +90,14 @@ func (s *Service) SaveEntry(ctx context.Context, id int64, in EntryInput) (*mode
 		}
 		result = entry
 		if id == 0 {
-			return tx.store.CreateEntry(ctx, entry)
+			return tx.store.CreateEntry(entry)
 		}
-		return tx.store.SaveEntry(ctx, entry)
+		return tx.store.SaveEntry(entry)
 	})
 	return result, err
 }
 
-func (s *Service) applyFoodEntry(ctx context.Context, entry *model.MealEntry, in EntryInput, newItem bool) error {
+func (s *Service) applyFoodEntry(entry *model.MealEntry, in EntryInput, newItem bool) error {
 	oldFoodID := entry.FoodID
 	if in.RecipeID.Set {
 		return Invalid("recipe_id", "食物记录不能填写 recipe_id")
@@ -111,7 +110,7 @@ func (s *Service) applyFoodEntry(ctx context.Context, entry *model.MealEntry, in
 	}
 	changed := newItem || oldFoodID == nil || *oldFoodID != *entry.FoodID
 	if changed {
-		food, err := s.store.Food(ctx, *entry.FoodID, false)
+		food, err := s.store.Food(*entry.FoodID, false)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Invalid("food_id", "引用的食物不存在")
 		}
@@ -148,7 +147,7 @@ func (s *Service) applyFoodEntry(ctx context.Context, entry *model.MealEntry, in
 	return nil
 }
 
-func (s *Service) applyRecipeEntry(ctx context.Context, entry *model.MealEntry, in EntryInput, newItem bool) error {
+func (s *Service) applyRecipeEntry(entry *model.MealEntry, in EntryInput, newItem bool) error {
 	oldRecipeID := entry.RecipeID
 	if in.FoodID.Set || in.Quantity.Set || in.Unit.Set {
 		return Invalid("item_type", "菜品整道计入，不能填写 food_id、quantity 或 unit")
@@ -161,14 +160,14 @@ func (s *Service) applyRecipeEntry(ctx context.Context, entry *model.MealEntry, 
 	}
 	changed := newItem || oldRecipeID == nil || *oldRecipeID != *entry.RecipeID
 	if changed {
-		recipe, err := s.store.Recipe(ctx, *entry.RecipeID, false)
+		recipe, err := s.store.Recipe(*entry.RecipeID, false)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Invalid("recipe_id", "引用的菜品不存在")
 		}
 		if err != nil {
 			return err
 		}
-		view, err := s.recipeView(ctx, recipe)
+		view, err := s.recipeView(recipe)
 		if err != nil {
 			return err
 		}

@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/nutrition"
 )
@@ -21,19 +19,19 @@ type Summary struct {
 	Comparison      map[string]Comparison       `json:"comparison"`
 }
 
-func (s *Service) DailySummary(ctx context.Context, rawDate string) (*Summary, error) {
+func (s *Service) DailySummary(rawDate string) (*Summary, error) {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return nil, err
 	}
 	result := &Summary{Date: date, Meals: map[string]nutrition.Totals{}, Comparison: map[string]Comparison{}}
-	err = s.transaction(ctx, func(tx *Service) error {
+	err = s.transaction(func(tx *Service) error {
 		var err error
-		result.Goal, err = tx.resolveGoal(ctx, date)
+		result.Goal, err = tx.resolveGoal(date)
 		if err != nil {
 			return err
 		}
-		entries, err := tx.store.Entries(ctx, date, "")
+		entries, err := tx.store.Entries(date, "")
 		if err != nil {
 			return err
 		}

@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/nutrition"
 )
@@ -18,7 +16,7 @@ type FoodPatch struct {
 	NutritionPer100 Field[nutrition.Values] `json:"nutrition_per_100"`
 }
 
-func (s *Service) CreateFood(ctx context.Context, in FoodInput) (*model.Food, error) {
+func (s *Service) CreateFood(in FoodInput) (*model.Food, error) {
 	name, err := cleanName(in.Name)
 	if err != nil {
 		return nil, err
@@ -30,32 +28,32 @@ func (s *Service) CreateFood(ctx context.Context, in FoodInput) (*model.Food, er
 		return nil, Invalid("nutrition_per_100", err.Error())
 	}
 	food := &model.Food{Name: name, BasisUnit: in.BasisUnit, NutritionPer100: in.NutritionPer100.Normalized()}
-	return food, s.store.CreateFood(ctx, food)
+	return food, s.store.CreateFood(food)
 }
 
-func (s *Service) Food(ctx context.Context, id int64) (*model.Food, error) {
-	food, err := s.store.Food(ctx, id, false)
+func (s *Service) Food(id int64) (*model.Food, error) {
+	food, err := s.store.Food(id, false)
 	return food, resourceError(err)
 }
 
-func (s *Service) Foods(ctx context.Context, page Page) (List[model.Food], error) {
+func (s *Service) Foods(page Page) (List[model.Food], error) {
 	result := List[model.Food]{Page: page.Number, PageSize: page.Size}
 	if err := page.Validate(); err != nil {
 		return result, err
 	}
-	err := s.transaction(ctx, func(tx *Service) error {
+	err := s.transaction(func(tx *Service) error {
 		var err error
-		result.Items, result.Total, err = tx.store.Foods(ctx, page.Query, page.Number, page.Size)
+		result.Items, result.Total, err = tx.store.Foods(page.Query, page.Number, page.Size)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) PatchFood(ctx context.Context, id int64, in FoodPatch) (*model.Food, error) {
+func (s *Service) PatchFood(id int64, in FoodPatch) (*model.Food, error) {
 	var food *model.Food
-	err := s.transaction(ctx, func(tx *Service) error {
+	err := s.transaction(func(tx *Service) error {
 		var err error
-		food, err = tx.store.Food(ctx, id, true)
+		food, err = tx.store.Food(id, true)
 		if err != nil {
 			return resourceError(err)
 		}
@@ -79,7 +77,7 @@ func (s *Service) PatchFood(ctx context.Context, id int64, in FoodPatch) (*model
 				return Invalid("nutrition_per_100", err.Error())
 			}
 		}
-		return tx.store.SaveFood(ctx, food)
+		return tx.store.SaveFood(food)
 	})
 	return food, err
 }

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -27,8 +26,8 @@ type RecipeView struct {
 	NutritionTotals nutrition.Totals           `json:"nutrition_totals"`
 }
 
-func (s *Service) recipeView(ctx context.Context, recipe *model.Recipe) (*RecipeView, error) {
-	rows, err := s.store.Ingredients(ctx, recipe.ID)
+func (s *Service) recipeView(recipe *model.Recipe) (*RecipeView, error) {
+	rows, err := s.store.Ingredients(recipe.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -49,32 +48,32 @@ func (s *Service) recipeView(ctx context.Context, recipe *model.Recipe) (*Recipe
 	return result, nil
 }
 
-func (s *Service) Recipe(ctx context.Context, id int64) (*RecipeView, error) {
+func (s *Service) Recipe(id int64) (*RecipeView, error) {
 	var result *RecipeView
-	err := s.transaction(ctx, func(tx *Service) error {
-		recipe, err := tx.store.Recipe(ctx, id, false)
+	err := s.transaction(func(tx *Service) error {
+		recipe, err := tx.store.Recipe(id, false)
 		if err != nil {
 			return resourceError(err)
 		}
-		result, err = tx.recipeView(ctx, recipe)
+		result, err = tx.recipeView(recipe)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) Recipes(ctx context.Context, page Page) (List[RecipeView], error) {
+func (s *Service) Recipes(page Page) (List[RecipeView], error) {
 	result := List[RecipeView]{Items: []RecipeView{}, Page: page.Number, PageSize: page.Size}
 	if err := page.Validate(); err != nil {
 		return result, err
 	}
-	err := s.transaction(ctx, func(tx *Service) error {
-		rows, total, err := tx.store.Recipes(ctx, page.Query, page.Number, page.Size)
+	err := s.transaction(func(tx *Service) error {
+		rows, total, err := tx.store.Recipes(page.Query, page.Number, page.Size)
 		if err != nil {
 			return err
 		}
 		result.Total = total
 		for _, row := range rows {
-			view, err := tx.recipeView(ctx, &row)
+			view, err := tx.recipeView(&row)
 			if err != nil {
 				return err
 			}
@@ -86,7 +85,7 @@ func (s *Service) Recipes(ctx context.Context, page Page) (List[RecipeView], err
 }
 
 // PutRecipe uses id=0 for creation; replacement is all-or-nothing.
-func (s *Service) PutRecipe(ctx context.Context, id int64, in RecipeInput) (*RecipeView, error) {
+func (s *Service) PutRecipe(id int64, in RecipeInput) (*RecipeView, error) {
 	name, err := cleanName(in.Name)
 	if err != nil {
 		return nil, err
@@ -95,11 +94,11 @@ func (s *Service) PutRecipe(ctx context.Context, id int64, in RecipeInput) (*Rec
 		return nil, Invalid("ingredients", "至少需要一种食材")
 	}
 	var result *RecipeView
-	err = s.transaction(ctx, func(tx *Service) error {
+	err = s.transaction(func(tx *Service) error {
 		recipe := &model.Recipe{Name: name}
 		if id != 0 {
 			var err error
-			recipe, err = tx.store.Recipe(ctx, id, true)
+			recipe, err = tx.store.Recipe(id, true)
 			if err != nil {
 				return resourceError(err)
 			}
@@ -111,7 +110,7 @@ func (s *Service) PutRecipe(ctx context.Context, id int64, in RecipeInput) (*Rec
 			if item.FoodID <= 0 {
 				return Invalid(field+".food_id", "食物 ID 必须大于 0")
 			}
-			food, err := tx.store.Food(ctx, item.FoodID, false)
+			food, err := tx.store.Food(item.FoodID, false)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return Invalid(field+".food_id", "引用的食物不存在")
 			}
@@ -125,17 +124,17 @@ func (s *Service) PutRecipe(ctx context.Context, id int64, in RecipeInput) (*Rec
 			rows = append(rows, model.RecipeIngredient{FoodID: food.ID, Quantity: quantity})
 		}
 		if id == 0 {
-			err = tx.store.CreateRecipe(ctx, recipe)
+			err = tx.store.CreateRecipe(recipe)
 		} else {
-			err = tx.store.SaveRecipe(ctx, recipe)
+			err = tx.store.SaveRecipe(recipe)
 		}
 		if err != nil {
 			return err
 		}
-		if err := tx.store.ReplaceIngredients(ctx, recipe.ID, rows); err != nil {
+		if err := tx.store.ReplaceIngredients(recipe.ID, rows); err != nil {
 			return err
 		}
-		result, err = tx.recipeView(ctx, recipe)
+		result, err = tx.recipeView(recipe)
 		return err
 	})
 	return result, err

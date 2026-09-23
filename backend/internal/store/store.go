@@ -14,8 +14,8 @@ type Store struct{ db *gorm.DB }
 
 func New(db *gorm.DB) *Store { return &Store{db: db} }
 
-func (s *Store) Transaction(ctx context.Context, fn func(*Store) error) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error { return fn(New(tx)) }, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+func (s *Store) Transaction(fn func(*Store) error) error {
+	return s.db.Transaction(func(tx *gorm.DB) error { return fn(New(tx)) }, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
 
 func (s *Store) Ping(ctx context.Context) error {
