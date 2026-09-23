@@ -1,6 +1,6 @@
 # Daily Meal
 
-个人饮食管理工具。Go 后端 V1 已实现每日目标、食物库、固定菜品、三餐记录和营养汇总。业务规则见 [后端实现文档](docs/implementation_v1.md)，完整接口契约见 [OpenAPI](backend/openapi/openapi.json)。
+个人饮食管理工具。Go 后端 V1 已实现每日目标、食物库、固定菜品、三餐记录和营养汇总。产品需求与验收标准见 [产品文档 V1](docs/product_v1.md)（首版待审查，后续修改须经用户确认），技术实现见 [后端实现文档](docs/implementation_v1.md)，完整接口契约见 [OpenAPI](backend/openapi/openapi.json)。
 
 ## 启动
 
