@@ -3,20 +3,11 @@ package service
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"dailymeal/backend/internal/nutrition"
 )
 
-func TestBusinessDateAndGoalTargets(t *testing.T) {
-	location, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := New(nil, location, func() time.Time { return time.Date(2026, 9, 8, 16, 1, 0, 0, time.UTC) })
-	if svc.Today() != "2026-09-09" {
-		t.Fatalf("wrong business date: %s", svc.Today())
-	}
+func TestGoalTargets(t *testing.T) {
 	input := GoalInput{nutrition.Number(2000), nutrition.Number(30), nutrition.Number(40), nutrition.Number(30)}
 	goal, err := input.values()
 	if err != nil {

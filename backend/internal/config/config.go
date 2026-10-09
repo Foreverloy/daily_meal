@@ -10,8 +10,10 @@ import (
 type Config struct {
 	DatabaseURL string
 	HTTPAddr    string
-	Location    *time.Location
 }
+
+// Location is loaded from BUSINESS_TIMEZONE at startup; tzdata includes the default zone.
+var Location, _ = time.LoadLocation("Asia/Shanghai")
 
 func Load() (Config, error) {
 	cfg := Config{DatabaseURL: os.Getenv("DATABASE_URL"), HTTPAddr: os.Getenv("HTTP_ADDR")}
@@ -25,10 +27,10 @@ func Load() (Config, error) {
 	if zone == "" {
 		zone = "Asia/Shanghai"
 	}
-	var err error
-	cfg.Location, err = time.LoadLocation(zone)
+	location, err := time.LoadLocation(zone)
 	if err != nil {
 		return cfg, fmt.Errorf("invalid BUSINESS_TIMEZONE: %w", err)
 	}
+	Location = location
 	return cfg, nil
 }

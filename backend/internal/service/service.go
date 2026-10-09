@@ -5,22 +5,23 @@ import (
 	"strings"
 	"time"
 
+	"dailymeal/backend/internal/config"
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/store"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	store    *store.Store
-	location *time.Location
-	now      func() time.Time
+	store *store.Store
 }
 
-func New(db *store.Store, location *time.Location, now func() time.Time) *Service {
-	return &Service{store: db, location: location, now: now}
+func New(db *store.Store) *Service {
+	return &Service{store: db}
 }
 
-func (s *Service) Today() model.Date { return model.Date(s.now().In(s.location).Format(time.DateOnly)) }
+func (s *Service) Today() model.Date {
+	return model.Date(time.Now().In(config.Location).Format(time.DateOnly))
+}
 
 func ParseDate(date string) (model.Date, error) {
 	t, err := time.Parse(time.DateOnly, date)
@@ -48,7 +49,7 @@ func resourceError(err error) error {
 // All multi-query reads use one PostgreSQL snapshot, including recipe food preloads.
 func (s *Service) transaction(fn func(*Service) error) error {
 	return s.store.Transaction(func(tx *store.Store) error {
-		return fn(&Service{store: tx, location: s.location, now: s.now})
+		return fn(&Service{store: tx})
 	})
 }
 

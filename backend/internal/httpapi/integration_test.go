@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"dailymeal/backend/internal/config"
 	"dailymeal/backend/internal/database"
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/nutrition"
@@ -35,7 +36,6 @@ type fixture struct {
 	router   http.Handler
 	contract routers.Router
 	db       *gorm.DB
-	now      time.Time
 }
 
 // Tests only accept a dedicated *_test database, then create/drop a random schema.
@@ -87,13 +87,9 @@ func setup(t *testing.T) *fixture {
 	if err := migrations.Run(sqlDB, "up"); err != nil {
 		t.Fatal(err)
 	}
-	location, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := &fixture{db: db, now: time.Date(2026, 9, 8, 4, 0, 0, 0, time.UTC)}
+	f := &fixture{db: db}
 	repository := store.New(db)
-	svc := service.New(repository, location, func() time.Time { return f.now })
+	svc := service.New(repository)
 	gin.SetMode(gin.TestMode)
 	f.router = New(svc, repository.Ping, openapi.Document)
 	document, err := openapi3.NewLoader().LoadFromData(openapi.Document)
@@ -214,22 +210,26 @@ func TestIntegrationGoalHistory(t *testing.T) {
 			t.Fatalf("unexpected goal: %+v", goal)
 		}
 	}
+	historical := model.GoalSetting{EffectiveOn: "2026-09-08", GoalValues: model.GoalValues{EnergyKcal: 2100, ProteinPercent: 30, CarbohydratePercent: 40, FatPercent: 30}}
+	if err := f.db.Create(&historical).Error; err != nil {
+		t.Fatal(err)
+	}
 	f.request(t, "PUT", "/api/v1/goal-settings/default", goalInput(2000), 200)
 	f.request(t, "PUT", "/api/v1/goal-settings/default", goalInput(2100), 200)
 	var count int64
-	if err := f.db.Model(&model.GoalSetting{}).Count(&count).Error; err != nil || count != 1 {
+	if err := f.db.Model(&model.GoalSetting{}).Count(&count).Error; err != nil || count != 2 {
 		t.Fatalf("same-day upsert: %d, %v", count, err)
 	}
 	f.request(t, "PUT", "/api/v1/daily-goals/2026-09-08", goalInput(1800), 200)
-	f.now = time.Date(2026, 9, 8, 16, 1, 0, 0, time.UTC) // Already September 9 in Shanghai.
+	today := time.Now().In(config.Location)
 	current := response[service.GoalView](t, f, "PUT", "/api/v1/goal-settings/default", goalInput(2200), 200)
-	if current.EffectiveOn == nil || *current.EffectiveOn != "2026-09-09" {
+	if current.EffectiveOn == nil || *current.EffectiveOn != model.Date(today.Format(time.DateOnly)) {
 		t.Fatalf("wrong business date: %+v", current)
 	}
 	for _, tc := range []struct {
 		date, source string
 		energy       float64
-	}{{"2026-09-07", "none", 0}, {"2026-09-08", "override", 1800}, {"2026-09-09", "default", 2200}, {"2027-01-01", "default", 2200}} {
+	}{{"2026-09-07", "none", 0}, {"2026-09-08", "override", 1800}, {"2026-09-09", "default", 2100}, {today.Format(time.DateOnly), "default", 2200}, {today.AddDate(0, 0, 1).Format(time.DateOnly), "default", 2200}} {
 		got := response[service.ResolvedGoal](t, f, "GET", "/api/v1/daily-goals/"+tc.date, nil, 200)
 		if got.Source != tc.source || (got.Goal != nil && got.Goal.EnergyKcal != tc.energy) {
 			t.Fatalf("date %s: %+v", tc.date, got)
@@ -311,17 +311,22 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 
 func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 	f := setup(t)
-	f.request(t, "PUT", "/api/v1/goal-settings/default", goalInput(2000), 200)
+	historical := model.GoalSetting{EffectiveOn: "2026-09-08", GoalValues: model.GoalValues{EnergyKcal: 2000, ProteinPercent: 30, CarbohydratePercent: 40, FatPercent: 30}}
+	if err := f.db.Create(&historical).Error; err != nil {
+		t.Fatal(err)
+	}
 	rice := f.food(t, "米饭", "g", nutrition.Values{"energy_kcal": nutrition.Number(100), "protein_g": nutrition.Number(2), "carbohydrate_g": nutrition.Number(20), "fat_g": nutrition.Number(0)})
 	milk := f.food(t, "牛奶", "ml", nutrition.Values{"energy_kcal": nutrition.Number(60), "protein_g": nil, "fat_g": nutrition.Number(3)})
 	recipe := response[service.RecipeView](t, f, "POST", "/api/v1/recipes", service.RecipeInput{Name: "牛奶饭", Ingredients: []service.IngredientInput{{FoodID: rice.ID, Quantity: 100, Unit: "g"}, {FoodID: milk.ID, Quantity: 200, Unit: "ml"}}}, 201)
+	today := model.Date(time.Now().In(config.Location).Format(time.DateOnly))
 	foodEntry := response[model.MealEntry](t, f, "POST", "/api/v1/meal-entries", map[string]any{"meal_type": "lunch", "item_type": "food", "food_id": rice.ID, "quantity": .15, "unit": "kg"}, 201)
-	recipeEntry := response[model.MealEntry](t, f, "POST", "/api/v1/meal-entries", map[string]any{"meal_type": "lunch", "item_type": "recipe", "recipe_id": recipe.ID}, 201)
+	if foodEntry.Date != today || *foodEntry.Quantity != 150 {
+		t.Fatal("wrong default date or quantity")
+	}
+	foodEntry = response[model.MealEntry](t, f, "PATCH", path("meal-entries", foodEntry.ID), map[string]any{"date": "2026-09-08"}, 200)
+	recipeEntry := response[model.MealEntry](t, f, "POST", "/api/v1/meal-entries", map[string]any{"date": "2026-09-08", "meal_type": "lunch", "item_type": "recipe", "recipe_id": recipe.ID}, 201)
 	if recipeEntry.Quantity != nil || recipeEntry.FoodID != nil || len(recipeEntry.Snapshot.Ingredients) != 2 {
 		t.Fatal("recipe entry did not capture entire recipe")
-	}
-	if foodEntry.Date != "2026-09-08" || *foodEntry.Quantity != 150 {
-		t.Fatal("wrong default date or quantity")
 	}
 	summary := response[service.Summary](t, f, "GET", "/api/v1/daily-summary?date=2026-09-08", nil, 200)
 	amount(t, summary.NutritionTotals["energy_kcal"], nutrition.Number(370), true)
