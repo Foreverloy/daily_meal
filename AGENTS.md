@@ -8,12 +8,12 @@ Daily Meal 是个人饮食管理工具，参考“薄荷健康”相关功能和
 
 V1 先实现 Go 后端。后续接入 Python Agent，通过截图维护食物，通过对话记录饮食、调整目标、录入菜品和推荐菜单，复用 Go 业务接口。
 
-前端由 AI 实现，先支持电脑和手机网页，后续通过 Capacitor 支持 iOS App。用户主要专注 Go 与 Agent 开发。
+本仓库仅维护 Go 业务后端，开发约束围绕业务接口、营养计算和数据保存。
 
 ### 产品文档与审查
 
-- [产品文档 V1](docs/product_v1.md)集中维护产品定位、范围、使用流程、业务规则和验收标准；首版为待用户审查的整理稿，未经确认不得标记为已批准。
-- 此后对产品文档的任何修改（含内容、措辞、格式、链接及状态），必须先向用户展示具体修改差异、原因和影响，得到明确确认后再写入，且仅修改已确认的范围。
+- 总产品文档与本仓库产品文档按下方链接维护；总产品文档集中维护产品定位、范围、使用流程、业务规则和验收标准；首版为待用户审查的整理稿，未经确认不得标记为已批准。
+- 此后对总产品文档及各端产品文档的任何修改（含内容、措辞、格式、链接及状态），必须先向用户展示具体修改差异、原因和影响，得到明确确认后再写入，且仅修改已确认的范围。
 - 用户明确指定的具体改动可视为对该改动的授权；一般性的开发、修复或同步文档请求不等于批准产品文档修改，沉默也不等于批准。
 - 审查通过后，以产品文档作为需求基准，实现文档负责技术落地。发现代码或实现文档与已批准需求冲突时先说明差异，不得自行改写产品文档追认实现行为。
 - 不得通过改名、移动、删除、拆分产品文档，或修改其他文档中的产品约定与本审查规则，绕过用户审查；未确认的产品变更先在对话中提出。
@@ -28,22 +28,23 @@ V1 先实现 Go 后端。后续接入 Python Agent，通过截图维护食物，
 - 后续 Agent 调整菜品时，只改变本次配方；用户明确要求修改模板时才更新原菜品。推荐与实际饮食记录分开。
 - 保持实现简单，围绕已确认需求开发。
 
-### 技术栈
+### 技术栈与开发约定
 
-- 最终架构：同一仓库，Vue 前端调用 Go 业务后端，Python Agent 作为独立服务。
-- 前端：Vue 3 + TypeScript + Vite + Vue Router，使用 HTML/CSS 构建响应式页面；后续接入 Capacitor。
-- Go 后端：Gin + GORM + Goose，负责业务逻辑、营养计算和业务数据。
-- Python Agent：FastAPI + Pydantic + LangChain + LangGraph，负责模型调用、工具调用和 Agent 状态。
-- 数据库：PostgreSQL；业务数据与 Agent 检查点使用独立数据库或 schema，Python 通过 Go 内部接口访问业务数据。
-- 服务通信：HTTP/JSON + OpenAPI；Agent 阶段使用 SSE 沿 Python → Go → 页面返回流式输出。
-- 开发部署：Docker Compose；测试使用 Go testing/httptest、Python pytest，并接入 CI。
-- 后续扩展：Redis + Asynq，由 Go Worker 调用 Python Agent；OpenTelemetry 用于跨服务追踪。
+- Go + Gin + GORM + Goose，负责 HTTP 接口、业务逻辑、营养计算、业务数据和数据库迁移。
+- PostgreSQL 保存业务数据；数据库迁移使用 Goose SQL，不使用 GORM AutoMigrate。
+- 服务通信使用 HTTP/JSON + OpenAPI；后续 Python Agent 通过 Go 业务接口访问数据，营养计算和最终写入仍由 Go 负责。
+- Docker Compose 管理 API、迁移和 PostgreSQL；使用 Go testing/httptest、独立测试数据库和 CI 验证。
+- 保持调用路径清晰，按 HTTP Handler → Service → Store → PostgreSQL 组织代码。
+- 从仓库根目录运行 `make run`、`make migrate`、`make test`、`make check`、`make build`；Go 不自动加载 `.env`，本机运行须设置 `DATABASE_URL`。
+- 集成测试仅使用名称以 `_test` 结尾的独立数据库，通过 `TEST_DATABASE_URL` 指定，不使用个人饮食数据库。
+- Redis + Asynq 与 OpenTelemetry 属于后续扩展，按需求再引入。
 
-### 实现文档
+### 文档
 
-- [产品文档 V1](docs/product_v1.md)：产品需求与验收标准，修改须经用户审查。
-- [后端 V1 实现文档](docs/implementation_v1.md)：业务规则、数据模型、接口和开发顺序。
-- [前端 V1 实现文档](docs/frontend_implementation_v1.md)：Vue 技术栈、页面、接口对接及后续 iOS 接入。
+- [总产品文档 V1](docs/product_v1.md)：唯一的共同业务规则与整体规划，前后端均读取这一份。
+- [后端产品文档 V1](docs/backend_product_v1.md)：Go API 交付范围与接口验收。
+- [后端 V1 实现文档](docs/implementation_v1.md)：数据模型、接口和开发顺序。
+- [OpenAPI](backend/openapi/openapi.json)：完整接口契约。
 
 ### Git 提交规范
 

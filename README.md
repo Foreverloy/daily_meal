@@ -1,6 +1,6 @@
-# Daily Meal
+# Daily Meal 后端
 
-个人饮食管理工具。Go 后端 V1 已实现每日目标、食物库、固定菜品、三餐记录和营养汇总。产品需求与验收标准见 [产品文档 V1](docs/product_v1.md)（首版待审查，后续修改须经用户确认），技术实现见 [后端实现文档](docs/implementation_v1.md)，完整接口契约见 [OpenAPI](backend/openapi/openapi.json)。
+个人饮食管理工具。本仓库仅维护 Go 后端，已实现每日目标、食物库、固定菜品、三餐记录和营养汇总。后端交付范围见[后端产品文档 V1](docs/backend_product_v1.md)，共同业务规则与整体规划见[总产品文档 V1](docs/product_v1.md)（首版待审查，后续修改须经用户确认），技术实现见 [后端实现文档](docs/implementation_v1.md)，完整接口契约见 [OpenAPI](backend/openapi/openapi.json)。
 
 ## 启动
 
@@ -11,7 +11,7 @@ docker compose up --build -d
 curl http://localhost:8080/healthz
 ```
 
-Compose 依次启动 PostgreSQL、执行 Goose 迁移、启动 API。API 地址为 `http://localhost:8080`，接口前缀为 `/api/v1`，文档位于 `/openapi.json`。数据库保存在命名 volume 中。开发环境端口仅绑定本机。
+Compose 启动 PostgreSQL、执行 Goose 迁移、启动 API。API 地址为 `http://localhost:8080`，接口前缀为 `/api/v1`，文档位于 `/openapi.json`。数据库保存在命名 volume 中。开发环境端口仅绑定本机。
 
 可复制 `.env.example` 为 `.env` 调整数据库密码和业务时区；Compose 会自动读取。默认时区为 `Asia/Shanghai`，本地 PostgreSQL 端口为 `5433`。
 
@@ -26,7 +26,20 @@ make migrate
 make run
 ```
 
-已有 PostgreSQL 时创建专用数据库，把 `DATABASE_URL` 指向它即可。Go 程序读取环境变量，不会自动加载 `.env`。可选变量为 `HTTP_ADDR`（默认 `:8080`）、`BUSINESS_TIMEZONE`（默认 `Asia/Shanghai`）。
+已有本机 PostgreSQL 时，可以直接使用它，不需要 Docker。以下以数据库用户 `postgres`、端口 `5432` 为例，请替换为自己的数据库用户名和端口。在仓库根目录执行：
+
+```sh
+# 仅首次创建数据库
+createdb -h 127.0.0.1 -p 5432 -U postgres dailymeal
+
+export DATABASE_URL='postgres://postgres@127.0.0.1:5432/dailymeal?sslmode=disable'
+make migrate
+make run
+```
+
+如果数据库需要密码，在连接地址中使用 `postgres://用户名:密码@127.0.0.1:5432/dailymeal?sslmode=disable`。
+
+Go 程序读取环境变量，不会自动加载 `.env`，所以每次在新终端启动后端前都需要设置 `DATABASE_URL`。可选变量为 `HTTP_ADDR`（默认 `:8080`）、`BUSINESS_TIMEZONE`（默认 `Asia/Shanghai`）。
 
 迁移与 HTTP 服务分开执行，服务启动不会修改表结构。迁移命令为 `go run ./cmd/migrate up|down|status`，在 `backend/` 中运行。`down` 会回滚一版迁移并删除对应业务数据，仅用于可丢弃环境。
 
@@ -54,7 +67,7 @@ backend/
 
 业务服务负责事务。涉及多次查询的配方读取、快照创建和每日汇总使用 PostgreSQL `REPEATABLE READ`，保证同一次操作看到一致数据；PATCH 和配方替换先锁定被修改行。数据库迁移使用显式 SQL，不使用 GORM AutoMigrate。
 
-数量和目标在 PostgreSQL 中使用 `NUMERIC`，营养及快照使用 `JSONB`。Go 使用 `float64` 保留中间计算精度，不逐项取整，显示格式由前端决定。
+数量和目标在 PostgreSQL 中使用 `NUMERIC`，营养及快照使用 `JSONB`。Go 使用 `float64` 保留中间计算精度，不逐项取整，显示格式由调用方决定。
 
 ## 接口要点
 
@@ -100,5 +113,4 @@ make test-integration
 
 ## 后续开发
 
-前端放在 `frontend/`，Python Agent 后续作为独立服务接入 Go API。当前实现专注单人后端 V1。前端、Agent、登录、异步任务和 SSE 按后续阶段推进。
-# daily_meal
+Python Agent、截图识别、对话记餐、菜单推荐、登录、异步任务和 SSE 按后续阶段推进。
