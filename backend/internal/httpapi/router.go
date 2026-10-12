@@ -72,6 +72,8 @@ func writeError(c *gin.Context, err error) {
 			status = http.StatusNotFound
 		case "bad_request":
 			status = http.StatusBadRequest
+		case "idempotency_conflict":
+			status = http.StatusConflict
 		}
 	} else {
 		slog.ErrorContext(c.Request.Context(), "request failed", "error", err)

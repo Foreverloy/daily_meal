@@ -105,7 +105,7 @@ func setup(t *testing.T) *fixture {
 	return f
 }
 
-func (f *fixture) request(t *testing.T, method, path string, body any, status int) []byte {
+func (f *fixture) request(t *testing.T, method, path string, body any, status int, headers ...http.Header) []byte {
 	t.Helper()
 	var data []byte
 	if body != nil {
@@ -117,6 +117,13 @@ func (f *fixture) request(t *testing.T, method, path string, body any, status in
 	}
 	r := httptest.NewRequest(method, path, bytes.NewReader(data))
 	r.Header.Set("Content-Type", "application/json")
+	for _, header := range headers {
+		for key, values := range header {
+			for _, value := range values {
+				r.Header.Add(key, value)
+			}
+		}
+	}
 	w := httptest.NewRecorder()
 	f.router.ServeHTTP(w, r)
 	if w.Code != status {
@@ -126,7 +133,7 @@ func (f *fixture) request(t *testing.T, method, path string, body any, status in
 		t.Fatal("204 response has a body")
 	}
 	contractRequest := httptest.NewRequest(method, path, bytes.NewReader(data))
-	contractRequest.Header.Set("Content-Type", "application/json")
+	contractRequest.Header = r.Header.Clone()
 	route, params, err := f.contract.FindRoute(contractRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +210,7 @@ func TestIntegrationMigrations(t *testing.T) {
 	if err := migrations.Run(db, "up"); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"goal_settings", "daily_goals", "foods", "recipes", "recipe_ingredients", "meal_entries"} {
+	for _, table := range []string{"goal_settings", "daily_goals", "foods", "recipes", "recipe_ingredients", "meal_entries", "meal_entry_requests"} {
 		if !f.db.Migrator().HasTable(table) {
 			t.Fatalf("missing table %s", table)
 		}

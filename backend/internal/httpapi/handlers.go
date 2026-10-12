@@ -136,11 +136,15 @@ func (h *Handler) entries(c *gin.Context) {
 }
 
 func (h *Handler) createEntry(c *gin.Context) {
+	key, ok := entryIdempotencyKey(c)
+	if !ok {
+		return
+	}
 	var in service.EntryInput
 	if !decode(c, &in) {
 		return
 	}
-	v, err := h.service.SaveEntry(0, in)
+	v, err := h.service.CreateEntry(in, key)
 	respond(c, http.StatusCreated, v, err)
 }
 

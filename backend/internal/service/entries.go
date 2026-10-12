@@ -20,6 +20,15 @@ type EntryInput struct {
 
 func validMeal(meal string) bool { return meal == "breakfast" || meal == "lunch" || meal == "dinner" }
 
+func (in EntryInput) validateNulls() error {
+	for key, null := range map[string]bool{"date": in.Date.Null, "meal_type": in.MealType.Null, "item_type": in.ItemType.Null, "food_id": in.FoodID.Null, "recipe_id": in.RecipeID.Null, "quantity": in.Quantity.Null, "unit": in.Unit.Null} {
+		if null {
+			return Invalid(key, "不能为 null；未修改的字段请省略")
+		}
+	}
+	return nil
+}
+
 func (s *Service) Entry(id int64) (*model.MealEntry, error) {
 	entry, err := s.store.Entry(id, false)
 	return entry, resourceError(err)
@@ -43,58 +52,62 @@ func (s *Service) DeleteEntry(id int64) error {
 // SaveEntry uses id=0 for creation. Metadata/quantity edits reuse the original snapshot;
 // only selecting a different item reads the current food or recipe.
 func (s *Service) SaveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
-	for key, null := range map[string]bool{"date": in.Date.Null, "meal_type": in.MealType.Null, "item_type": in.ItemType.Null, "food_id": in.FoodID.Null, "recipe_id": in.RecipeID.Null, "quantity": in.Quantity.Null, "unit": in.Unit.Null} {
-		if null {
-			return nil, Invalid(key, "不能为 null；未修改的字段请省略")
-		}
+	if err := in.validateNulls(); err != nil {
+		return nil, err
 	}
 	var result *model.MealEntry
 	err := s.transaction(func(tx *Service) error {
-		entry := &model.MealEntry{Date: tx.Today()}
-		if id != 0 {
-			var err error
-			entry, err = tx.store.Entry(id, true)
-			if err != nil {
-				return resourceError(err)
-			}
-		}
-		oldType := entry.ItemType
-		if in.Date.Set {
-			date, err := ParseDate(in.Date.Value)
-			if err != nil {
-				return err
-			}
-			entry.Date = date
-		}
-		if in.MealType.Set {
-			entry.MealType = in.MealType.Value
-		}
-		if !validMeal(entry.MealType) {
-			return Invalid("meal_type", "餐次须为 breakfast、lunch 或 dinner")
-		}
-		if in.ItemType.Set {
-			entry.ItemType = in.ItemType.Value
-		}
-		newItem := id == 0 || oldType != entry.ItemType
 		var err error
-		switch entry.ItemType {
-		case "food":
-			err = tx.applyFoodEntry(entry, in, newItem)
-		case "recipe":
-			err = tx.applyRecipeEntry(entry, in, newItem)
-		default:
-			return Invalid("item_type", "类型须为 food 或 recipe")
-		}
-		if err != nil {
-			return err
-		}
-		result = entry
-		if id == 0 {
-			return tx.store.CreateEntry(entry)
-		}
-		return tx.store.SaveEntry(entry)
+		result, err = tx.saveEntry(id, in)
+		return err
 	})
 	return result, err
+}
+
+// saveEntry runs inside an existing transaction, shared by ordinary and keyed creation.
+func (s *Service) saveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
+	entry := &model.MealEntry{Date: s.Today()}
+	if id != 0 {
+		var err error
+		entry, err = s.store.Entry(id, true)
+		if err != nil {
+			return nil, resourceError(err)
+		}
+	}
+	oldType := entry.ItemType
+	if in.Date.Set {
+		date, err := ParseDate(in.Date.Value)
+		if err != nil {
+			return nil, err
+		}
+		entry.Date = date
+	}
+	if in.MealType.Set {
+		entry.MealType = in.MealType.Value
+	}
+	if !validMeal(entry.MealType) {
+		return nil, Invalid("meal_type", "餐次须为 breakfast、lunch 或 dinner")
+	}
+	if in.ItemType.Set {
+		entry.ItemType = in.ItemType.Value
+	}
+	newItem := id == 0 || oldType != entry.ItemType
+	var err error
+	switch entry.ItemType {
+	case "food":
+		err = s.applyFoodEntry(entry, in, newItem)
+	case "recipe":
+		err = s.applyRecipeEntry(entry, in, newItem)
+	default:
+		return nil, Invalid("item_type", "类型须为 food 或 recipe")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if id == 0 {
+		return entry, s.store.CreateEntry(entry)
+	}
+	return entry, s.store.SaveEntry(entry)
 }
 
 func (s *Service) applyFoodEntry(entry *model.MealEntry, in EntryInput, newItem bool) error {

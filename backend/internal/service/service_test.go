@@ -2,10 +2,22 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"dailymeal/backend/internal/nutrition"
 )
+
+func TestEntryNullValidationBeforeTransaction(t *testing.T) {
+	svc := New(nil)
+	for _, id := range []int64{0, 42} {
+		_, err := svc.SaveEntry(id, EntryInput{Date: Field[string]{Set: true, Null: true}})
+		var appErr *Error
+		if !errors.As(err, &appErr) || appErr.Code != "validation_error" || appErr.Fields["date"] == "" {
+			t.Fatalf("id=%d accepted null date: %v", id, err)
+		}
+	}
+}
 
 func TestGoalTargets(t *testing.T) {
 	input := GoalInput{nutrition.Number(2000), nutrition.Number(30), nutrition.Number(40), nutrition.Number(30)}
