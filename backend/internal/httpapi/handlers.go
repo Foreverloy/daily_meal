@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
 
 	"dailymeal/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -44,6 +45,15 @@ func (h *Handler) foods(c *gin.Context) {
 	p, ok := pageParams(c)
 	if !ok {
 		return
+	}
+	// 收藏筛选只属于食物列表，不影响共用分页解析的菜品列表。
+	if c.Request.URL.Query().Has("favorite") {
+		value, err := strconv.ParseBool(c.Query("favorite"))
+		if err != nil {
+			writeError(c, service.Invalid("favorite", "须为布尔值"))
+			return
+		}
+		p.Favorite = &value
 	}
 	v, err := h.service.Foods(p)
 	respond(c, http.StatusOK, v, err)

@@ -27,9 +27,13 @@ func TestTransportErrors(t *testing.T) {
 		{"POST", "/api/v1/foods", `{"name":123}`, 400},
 		{"POST", "/api/v1/foods", `{"unknown":true}`, 400},
 		{"PATCH", "/api/v1/foods/1", `{"basis_unit":"ml"}`, 400},
+		{"POST", "/api/v1/foods", `{"favorite":true}`, 400},
+		{"PATCH", "/api/v1/foods/1", `{"favorite":"true"}`, 400},
 		{"GET", "/api/v1/foods/nope", ``, 422},
 		{"GET", "/api/v1/foods/0", ``, 422},
 		{"GET", "/api/v1/foods?page=invalid", ``, 422},
+		{"GET", "/api/v1/foods?favorite=invalid", ``, 422},
+		{"GET", "/api/v1/foods?favorite=", ``, 422},
 		{"GET", "/missing", ``, 404},
 		{"GET", "/healthz", ``, 500},
 	} {

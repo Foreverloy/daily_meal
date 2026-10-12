@@ -8,6 +8,7 @@ import (
 	"dailymeal/backend/internal/config"
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/store"
+
 	"gorm.io/gorm"
 )
 
@@ -54,9 +55,11 @@ func (s *Service) transaction(fn func(*Service) error) error {
 }
 
 type Page struct {
-	Query  string
-	Number int
-	Size   int
+	// Favorite 仅用于食物查询：true 只查已收藏，nil 或 false 查询全部。
+	Favorite *bool
+	Query    string
+	Number   int
+	Size     int
 }
 
 func (p Page) Validate() error {

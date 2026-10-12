@@ -8,10 +8,15 @@ func (s *Store) Food(id int64, forUpdate bool) (*model.Food, error) {
 	return &food, err
 }
 
-func (s *Store) Foods(q string, page, size int) ([]model.Food, int64, error) {
+// Foods 将名称和收藏条件同时用于总数与分页查询，保持原有 id DESC 排序。
+func (s *Store) Foods(q string, favorite *bool, page, size int) ([]model.Food, int64, error) {
 	items := []model.Food{}
 	var total int64
 	query := named(s.db.Model(&model.Food{}), q)
+
+	if favorite != nil && *favorite {
+		query = query.Where("favorite = ?", true)
+	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

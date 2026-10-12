@@ -11,11 +11,14 @@ type FoodInput struct {
 	NutritionPer100 nutrition.Values `json:"nutrition_per_100"`
 }
 
+// FoodPatch 只更新提供的字段；favorite=false 取消收藏，省略时保留原状态。
 type FoodPatch struct {
 	Name            Field[string]           `json:"name"`
 	NutritionPer100 Field[nutrition.Values] `json:"nutrition_per_100"`
+	Favorite        Field[bool]             `json:"favorite"`
 }
 
+// CreateFood 新建未收藏的食物，收藏需要用户通过 PATCH 主动设置。
 func (s *Service) CreateFood(in FoodInput) (*model.Food, error) {
 	name, err := cleanName(in.Name)
 	if err != nil {
@@ -43,12 +46,13 @@ func (s *Service) Foods(page Page) (List[model.Food], error) {
 	}
 	err := s.transaction(func(tx *Service) error {
 		var err error
-		result.Items, result.Total, err = tx.store.Foods(page.Query, page.Number, page.Size)
+		result.Items, result.Total, err = tx.store.Foods(page.Query, page.Favorite, page.Number, page.Size)
 		return err
 	})
 	return result, err
 }
 
+// PatchFood 在同一事务中读取并锁定食物，校验通过后一次保存全部修改。
 func (s *Service) PatchFood(id int64, in FoodPatch) (*model.Food, error) {
 	var food *model.Food
 	err := s.transaction(func(tx *Service) error {
@@ -76,6 +80,12 @@ func (s *Service) PatchFood(id int64, in FoodPatch) (*model.Food, error) {
 			if err := food.NutritionPer100.Validate(); err != nil {
 				return Invalid("nutrition_per_100", err.Error())
 			}
+		}
+		if in.Favorite.Set {
+			if in.Favorite.Null {
+				return Invalid("favorite", "收藏状态不能为 null")
+			}
+			food.Favorite = in.Favorite.Value
 		}
 		return tx.store.SaveFood(food)
 	})

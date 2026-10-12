@@ -54,3 +54,32 @@ func TestPatchPresence(t *testing.T) {
 		t.Fatal("lost known zero")
 	}
 }
+
+func TestFoodPatchFavoritePresence(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       Field[bool]
+		invalid    bool
+	}{
+		{"omitted", `{}`, Field[bool]{}, false},
+		{"favorite", `{"favorite":true}`, Field[bool]{Set: true, Value: true}, false},
+		{"unfavorite", `{"favorite":false}`, Field[bool]{Set: true}, false},
+		{"null", `{"favorite":null}`, Field[bool]{Set: true, Null: true}, false},
+		{"string", `{"favorite":"true"}`, Field[bool]{}, true},
+		{"number", `{"favorite":1}`, Field[bool]{}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var in FoodPatch
+			err := json.Unmarshal([]byte(tc.body), &in)
+			if tc.invalid {
+				if err == nil {
+					t.Fatal("accepted a non-boolean favorite")
+				}
+				return
+			}
+			if err != nil || in.Favorite != tc.want {
+				t.Fatalf("favorite=%+v want=%+v err=%v", in.Favorite, tc.want, err)
+			}
+		})
+	}
+}

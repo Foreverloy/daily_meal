@@ -64,6 +64,8 @@ type Food struct {
 	Name            string           `json:"name"`
 	BasisUnit       string           `json:"basis_unit"`
 	NutritionPer100 nutrition.Values `json:"nutrition_per_100" gorm:"column:nutrition_per_100;serializer:json;type:jsonb"`
+	// Favorite 是食物库的收藏状态，不参与营养计算或饮食记录快照。
+	Favorite bool `json:"favorite"`
 }
 
 type Recipe struct {

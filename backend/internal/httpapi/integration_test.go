@@ -29,6 +29,7 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/gin-gonic/gin"
+	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
 )
 
@@ -182,8 +183,19 @@ func TestIntegrationMigrations(t *testing.T) {
 	if err := migrations.Run(db, "up"); err != nil {
 		t.Fatal(err)
 	}
-	if err := migrations.Run(db, "down"); err != nil {
+	// down 每次只回滚一个版本；先回到版本 0，再验证完整重建。
+	version, err := goose.GetDBVersion(db)
+	if err != nil {
 		t.Fatal(err)
+	}
+	for version > 0 {
+		if err := migrations.Run(db, "down"); err != nil {
+			t.Fatal(err)
+		}
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	if f.db.Migrator().HasTable(&model.Food{}) {
 		t.Fatal("down did not remove business tables")
