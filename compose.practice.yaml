@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: meal
+      POSTGRES_PASSWORD: meal
+      POSTGRES_DB: daily_meal_practice
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "meal", "-d", "daily_meal_practice"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: daily_meal_practice
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.practice
+    environment:
+      DATABASE_URL: postgres://meal:meal@db:5432/daily_meal_practice?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ['/app/bin/migrate', 'up']
+
+  api:
+    image: daily_meal_practice
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.practice
+    environment:
+      DATABASE_URL: postgres://meal:meal@db:5432/daily_meal_practice?sslmode=disable
+      HTTP_ADDR: ":8080"
+      BUSINESS_TIMEZONE: Asia/Shanghai
+    ports:
+      - "127.0.0.1:18086:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  pgdata:

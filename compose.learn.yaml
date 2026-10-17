@@ -1,0 +1,47 @@
+# 从仓库根目录运行，固定使用独立的学习项目名：
+# docker compose -p dailymeal-learn -f compose.learn.yaml up --build -d
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dailymeal
+      POSTGRES_PASSWORD: dailymeal
+      POSTGRES_DB: dailymeal_docker_learn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "dailymeal", "-d", "dailymeal_docker_learn"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: daily-meal:learn
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.learn
+    command: ["/app/bin/migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://dailymeal:dailymeal@db:5432/dailymeal_docker_learn?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    image: daily-meal:learn
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.learn
+    environment:
+      DATABASE_URL: postgres://dailymeal:dailymeal@db:5432/dailymeal_docker_learn?sslmode=disable
+      HTTP_ADDR: ":8080"
+      BUSINESS_TIMEZONE: Asia/Shanghai
+    ports:
+      - "127.0.0.1:18084:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+# 首次 up 时创建 dailymeal-learn_pgdata，普通 down 会保留它。
+volumes:
+  pgdata:
