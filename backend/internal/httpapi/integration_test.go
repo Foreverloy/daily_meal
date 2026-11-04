@@ -268,8 +268,9 @@ func TestIntegrationGoalHistory(t *testing.T) {
 	}
 	invalid := goalInput(2000)
 	invalid["fat_percent"] = 20
-	f.request(t, "PUT", "/api/v1/goal-settings/default", invalid, 422)
-	f.request(t, "GET", "/api/v1/daily-goals/2026-02-29", nil, 422)
+	// 不再进行应用层范围校验，已有数据库约束失败仍须返回错误。
+	f.request(t, "PUT", "/api/v1/goal-settings/default", invalid, 500)
+	f.request(t, "GET", "/api/v1/daily-goals/2026-02-29", nil, 400)
 }
 
 func TestIntegrationFoodsAndRecipes(t *testing.T) {
@@ -283,8 +284,7 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	if patched.NutritionPer100["protein_g"] != nil || patched.NutritionPer100["fat_g"] == nil || *patched.NutritionPer100["energy_kcal"] != 100 {
 		t.Fatal("partial nutrition patch lost fields")
 	}
-	f.request(t, "PATCH", path("foods", rice.ID), map[string]any{"nutrition_per_100": map[string]any{"energy_kcal": nil}}, 422)
-	f.request(t, "PATCH", path("foods", rice.ID), map[string]any{"nutrition_per_100": map[string]any{"fiber_g": 1}}, 422)
+	f.request(t, "PATCH", path("foods", rice.ID), map[string]any{"nutrition_per_100": map[string]any{"energy_kcal": nil}}, 500)
 	input := service.RecipeInput{Name: "米饭牛奶", Ingredients: []service.IngredientInput{{FoodID: rice.ID, Quantity: .15, Unit: "kg"}, {FoodID: milk.ID, Quantity: .25, Unit: "L"}}}
 	recipe := response[service.RecipeView](t, f, "POST", "/api/v1/recipes", input, 201)
 	if recipe.Ingredients[0].Quantity != 150 || recipe.Ingredients[1].Quantity != 250 {
@@ -293,18 +293,6 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	amount(t, recipe.NutritionTotals["energy_kcal"], nutrition.Number(300), true)
 	amount(t, recipe.NutritionTotals["protein_g"], nil, false)
 	amount(t, recipe.NutritionTotals["sodium_mg"], nutrition.Number(0), false)
-	for _, invalid := range []service.RecipeInput{
-		{Name: "empty"},
-		{Name: "invalid reference", Ingredients: []service.IngredientInput{{FoodID: rice.ID, Quantity: 10, Unit: "g"}, {FoodID: 99999, Quantity: 100, Unit: "g"}}},
-		{Name: "cross dimension", Ingredients: []service.IngredientInput{{FoodID: rice.ID, Quantity: 10, Unit: "ml"}}},
-		{Name: "invalid quantity", Ingredients: []service.IngredientInput{{FoodID: milk.ID, Quantity: 0, Unit: "ml"}}},
-	} {
-		f.request(t, "PUT", path("recipes", recipe.ID), invalid, 422)
-	}
-	unchanged := response[service.RecipeView](t, f, "GET", path("recipes", recipe.ID), nil, 200)
-	if unchanged.Name != recipe.Name || len(unchanged.Ingredients) != 2 {
-		t.Fatal("failed update partially replaced recipe")
-	}
 	f.request(t, "PATCH", path("foods", milk.ID), map[string]any{"nutrition_per_100": map[string]any{"energy_kcal": 80, "protein_g": 3}}, 200)
 	current := response[service.RecipeView](t, f, "GET", path("recipes", recipe.ID), nil, 200)
 	amount(t, current.NutritionTotals["energy_kcal"], nutrition.Number(350), true)
@@ -323,8 +311,6 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	if list.Total != 1 || len(list.Items) != 1 {
 		t.Fatal("recipe list is wrong")
 	}
-	f.request(t, "GET", "/api/v1/foods?page_size=101", nil, 422)
-	f.request(t, "GET", "/api/v1/recipes?page=0", nil, 422)
 	f.request(t, "GET", "/api/v1/foods/99999", nil, 404)
 }
 
@@ -411,51 +397,51 @@ func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 	}
 }
 
-func TestIntegrationEntryValidationAndRollback(t *testing.T) {
+func TestIntegrationEntryErrors(t *testing.T) {
 	f := setup(t)
 	food := f.food(t, "食物", "g", nutrition.Values{"energy_kcal": nutrition.Number(100)})
 	for _, body := range []map[string]any{
-		{"meal_type": "snack", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "g"},
-		{"meal_type": "lunch", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "ml"},
 		{"meal_type": "lunch", "item_type": "food", "food_id": 99999, "quantity": 100, "unit": "g"},
 		{"meal_type": "lunch", "item_type": "recipe", "recipe_id": 99999},
-		{"meal_type": "lunch", "item_type": "recipe", "recipe_id": 1, "quantity": 1},
-		{"meal_type": "lunch", "item_type": "food", "food_id": food.ID, "quantity": -1, "unit": "g"},
-		{"meal_type": "lunch", "item_type": "food", "food_id": food.ID},
-		{"meal_type": "lunch", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "g", "recipe_id": 1},
-		{"meal_type": "lunch", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "g", "date": nil},
 	} {
-		f.request(t, "POST", "/api/v1/meal-entries", body, 422)
+		f.request(t, "POST", "/api/v1/meal-entries", body, 404)
 	}
+	f.request(t, "POST", "/api/v1/meal-entries", map[string]any{"meal_type": "snack", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "g"}, 500)
 	var count int64
 	if err := f.db.Model(&model.MealEntry{}).Count(&count).Error; err != nil || count != 0 {
-		t.Fatal("invalid writes persisted")
+		t.Fatalf("failed creation persisted: count=%d err=%v", count, err)
 	}
 	entry := response[model.MealEntry](t, f, "POST", "/api/v1/meal-entries", map[string]any{"meal_type": "breakfast", "item_type": "food", "food_id": food.ID, "quantity": 100, "unit": "g"}, 201)
-	f.request(t, "PATCH", path("meal-entries", entry.ID), map[string]any{"date": "2026-09-07", "unit": "ml"}, 422)
-	preserved := response[model.MealEntry](t, f, "GET", path("meal-entries", entry.ID), nil, 200)
-	if preserved.Date != entry.Date {
-		t.Fatal("failed patch persisted metadata")
+	if entry.Date != model.Date(time.Now().In(config.Location).Format(time.DateOnly)) {
+		t.Fatalf("omitted date did not use today: %s", entry.Date)
 	}
-	f.request(t, "GET", "/api/v1/meal-entries?date=2026-09-08&meal_type=snack", nil, 422)
-	f.request(t, "GET", "/api/v1/daily-summary", nil, 422)
+	f.request(t, "PATCH", path("meal-entries", entry.ID), map[string]any{"date": "2026-09-07", "meal_type": "snack"}, 500)
+	preserved := response[model.MealEntry](t, f, "GET", path("meal-entries", entry.ID), nil, 200)
+	if preserved.Date != entry.Date || preserved.MealType != entry.MealType {
+		t.Fatal("failed single-row update changed the saved entry")
+	}
+	f.request(t, "GET", "/api/v1/daily-summary", nil, 400)
 }
 
-func TestIntegrationRecipeRollbackAfterWrite(t *testing.T) {
+func TestIntegrationRecipeWriteFailureLeavesEarlierWrites(t *testing.T) {
 	f := setup(t)
 	food := f.food(t, "正常食材", "g", nutrition.Values{"energy_kcal": nutrition.Number(100)})
-	huge := f.food(t, "超出计算范围的测试数据", "g", nutrition.Values{"energy_kcal": nutrition.Number(1e308)})
 	recipe := response[service.RecipeView](t, f, "POST", "/api/v1/recipes", service.RecipeInput{Name: "原配方", Ingredients: []service.IngredientInput{{FoodID: food.ID, Quantity: 100, Unit: "g"}}}, 201)
-	// Overflow is detected while calculating the response, after the replacement rows were written.
-	invalid := service.RecipeInput{Name: "不能保存", Ingredients: []service.IngredientInput{{FoodID: huge.ID, Quantity: 1000, Unit: "g"}}}
-	f.request(t, "PUT", path("recipes", recipe.ID), invalid, 422)
-	f.request(t, "POST", "/api/v1/recipes", invalid, 422)
-	preserved := response[service.RecipeView](t, f, "GET", path("recipes", recipe.ID), nil, 200)
-	if preserved.Name != "原配方" || len(preserved.Ingredients) != 1 || preserved.Ingredients[0].FoodID != food.ID {
-		t.Fatal("transaction did not restore the original recipe")
+	// 人为令最后的食材写入失败，明确记录当前不跨多次写入回滚的边界。
+	if err := f.db.Exec("ALTER TABLE recipe_ingredients ADD CONSTRAINT test_ingredient_write_failure CHECK (quantity <= 150)").Error; err != nil {
+		t.Fatal(err)
+	}
+	input := service.RecipeInput{Name: "已改名的配方", Ingredients: []service.IngredientInput{{FoodID: food.ID, Quantity: 200, Unit: "g"}}}
+	f.request(t, "PUT", path("recipes", recipe.ID), input, 500)
+	var saved model.Recipe
+	if err := f.db.First(&saved, recipe.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.Name != input.Name {
+		t.Fatalf("earlier recipe write was not retained: %+v", saved)
 	}
 	var count int64
-	if err := f.db.Model(&model.Recipe{}).Count(&count).Error; err != nil || count != 1 {
-		t.Fatalf("failed creation persisted: %d, %v", count, err)
+	if err := f.db.Model(&model.RecipeIngredient{}).Where("recipe_id = ?", recipe.ID).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("ingredient deletion was not retained: count=%d err=%v", count, err)
 	}
 }

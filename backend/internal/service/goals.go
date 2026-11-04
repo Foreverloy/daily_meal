@@ -2,38 +2,13 @@ package service
 
 import (
 	"errors"
-	"math"
 
 	"dailymeal/backend/internal/model"
-	"dailymeal/backend/internal/nutrition"
 	"gorm.io/gorm"
 )
 
-type GoalInput struct {
-	EnergyKcal          *float64 `json:"energy_kcal"`
-	ProteinPercent      *float64 `json:"protein_percent"`
-	CarbohydratePercent *float64 `json:"carbohydrate_percent"`
-	FatPercent          *float64 `json:"fat_percent"`
-}
-
-func (in GoalInput) values() (model.GoalValues, error) {
-	for k, v := range map[string]*float64{"energy_kcal": in.EnergyKcal, "protein_percent": in.ProteinPercent, "carbohydrate_percent": in.CarbohydratePercent, "fat_percent": in.FatPercent} {
-		if v == nil || !nutrition.Finite(*v) {
-			return model.GoalValues{}, Invalid(k, "必填且须为有限数值")
-		}
-		if k == "energy_kcal" {
-			if *v <= 0 {
-				return model.GoalValues{}, Invalid(k, "热量必须大于 0")
-			}
-		} else if *v < 0 || *v > 100 {
-			return model.GoalValues{}, Invalid(k, "百分比须在 0～100 之间")
-		}
-	}
-	if math.Abs(*in.ProteinPercent+*in.CarbohydratePercent+*in.FatPercent-100) > 1e-8 {
-		return model.GoalValues{}, Invalid("percentages", "供能百分比合计必须为 100")
-	}
-	return model.GoalValues{EnergyKcal: *in.EnergyKcal, ProteinPercent: *in.ProteinPercent, CarbohydratePercent: *in.CarbohydratePercent, FatPercent: *in.FatPercent}, nil
-}
+// TODO：暂未在接口层校验热量与百分比，调用方提交完整目标。
+type GoalInput = model.GoalValues
 
 type GoalView struct {
 	model.GoalValues
@@ -63,11 +38,7 @@ func (s *Service) DefaultGoal() (*GoalView, error) {
 }
 
 func (s *Service) PutDefaultGoal(in GoalInput) (*GoalView, error) {
-	values, err := in.values()
-	if err != nil {
-		return nil, err
-	}
-	goal := model.GoalSetting{EffectiveOn: s.Today(), GoalValues: values}
+	goal := model.GoalSetting{EffectiveOn: s.Today(), GoalValues: in}
 	if err := s.store.PutDefaultGoal(&goal); err != nil {
 		return nil, err
 	}
@@ -102,9 +73,7 @@ func (s *Service) DailyGoal(rawDate string) (ResolvedGoal, error) {
 	if err != nil {
 		return ResolvedGoal{}, err
 	}
-	var result ResolvedGoal
-	err = s.transaction(func(tx *Service) error { var err error; result, err = tx.resolveGoal(date); return err })
-	return result, err
+	return s.resolveGoal(date)
 }
 
 func (s *Service) PutDailyGoal(rawDate string, in GoalInput) (ResolvedGoal, error) {
@@ -112,15 +81,11 @@ func (s *Service) PutDailyGoal(rawDate string, in GoalInput) (ResolvedGoal, erro
 	if err != nil {
 		return ResolvedGoal{}, err
 	}
-	values, err := in.values()
-	if err != nil {
-		return ResolvedGoal{}, err
-	}
-	goal := model.DailyGoal{Date: date, GoalValues: values}
+	goal := model.DailyGoal{Date: date, GoalValues: in}
 	if err := s.store.PutDailyGoal(&goal); err != nil {
 		return ResolvedGoal{}, err
 	}
-	return ResolvedGoal{Date: date, Source: "override", Goal: goalView(values, nil)}, nil
+	return ResolvedGoal{Date: date, Source: "override", Goal: goalView(in, nil)}, nil
 }
 
 func (s *Service) DeleteDailyGoal(rawDate string) error {

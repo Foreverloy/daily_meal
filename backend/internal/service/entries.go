@@ -1,11 +1,8 @@
 package service
 
 import (
-	"errors"
-
 	"dailymeal/backend/internal/model"
 	"dailymeal/backend/internal/nutrition"
-	"gorm.io/gorm"
 )
 
 type EntryInput struct {
@@ -18,20 +15,8 @@ type EntryInput struct {
 	Unit     Field[string]  `json:"unit"`
 }
 
-func validMeal(meal string) bool { return meal == "breakfast" || meal == "lunch" || meal == "dinner" }
-
-func (in EntryInput) validateNulls() error {
-	for key, null := range map[string]bool{"date": in.Date.Null, "meal_type": in.MealType.Null, "item_type": in.ItemType.Null, "food_id": in.FoodID.Null, "recipe_id": in.RecipeID.Null, "quantity": in.Quantity.Null, "unit": in.Unit.Null} {
-		if null {
-			return Invalid(key, "不能为 null；未修改的字段请省略")
-		}
-	}
-	return nil
-}
-
 func (s *Service) Entry(id int64) (*model.MealEntry, error) {
-	entry, err := s.store.Entry(id, false)
-	return entry, resourceError(err)
+	return s.store.Entry(id)
 }
 
 func (s *Service) Entries(rawDate, meal string) ([]model.MealEntry, error) {
@@ -39,39 +24,23 @@ func (s *Service) Entries(rawDate, meal string) ([]model.MealEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if meal != "" && !validMeal(meal) {
-		return nil, Invalid("meal_type", "餐次须为 breakfast、lunch 或 dinner")
-	}
 	return s.store.Entries(date, meal)
 }
 
 func (s *Service) DeleteEntry(id int64) error {
-	return resourceError(s.store.DeleteEntry(id))
+	return s.store.DeleteEntry(id)
 }
 
-// SaveEntry uses id=0 for creation. Metadata/quantity edits reuse the original snapshot;
-// only selecting a different item reads the current food or recipe.
+// SaveEntry 的 id=0 表示新建；修改日期、餐次或用量时沿用原快照，换食物或菜品才读取新数据。
 func (s *Service) SaveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
-	if err := in.validateNulls(); err != nil {
-		return nil, err
-	}
-	var result *model.MealEntry
-	err := s.transaction(func(tx *Service) error {
-		var err error
-		result, err = tx.saveEntry(id, in)
-		return err
-	})
-	return result, err
-}
-
-// saveEntry runs inside an existing transaction, shared by ordinary and keyed creation.
-func (s *Service) saveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
+	// TODO：暂未校验字段组合与必填值，调用方按 food/recipe 类型提交对应字段。
+	// TODO：暂未处理并发修改，也不保证读取菜品食材时来自同一数据库快照。
 	entry := &model.MealEntry{Date: s.Today()}
 	if id != 0 {
 		var err error
-		entry, err = s.store.Entry(id, true)
+		entry, err = s.store.Entry(id)
 		if err != nil {
-			return nil, resourceError(err)
+			return nil, err
 		}
 	}
 	oldType := entry.ItemType
@@ -85,9 +54,6 @@ func (s *Service) saveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
 	if in.MealType.Set {
 		entry.MealType = in.MealType.Value
 	}
-	if !validMeal(entry.MealType) {
-		return nil, Invalid("meal_type", "餐次须为 breakfast、lunch 或 dinner")
-	}
 	if in.ItemType.Set {
 		entry.ItemType = in.ItemType.Value
 	}
@@ -98,8 +64,6 @@ func (s *Service) saveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
 		err = s.applyFoodEntry(entry, in, newItem)
 	case "recipe":
 		err = s.applyRecipeEntry(entry, in, newItem)
-	default:
-		return nil, Invalid("item_type", "类型须为 food 或 recipe")
 	}
 	if err != nil {
 		return nil, err
@@ -111,72 +75,43 @@ func (s *Service) saveEntry(id int64, in EntryInput) (*model.MealEntry, error) {
 }
 
 func (s *Service) applyFoodEntry(entry *model.MealEntry, in EntryInput, newItem bool) error {
-	oldFoodID := entry.FoodID
-	if in.RecipeID.Set {
-		return Invalid("recipe_id", "食物记录不能填写 recipe_id")
+	var foodID int64
+	if entry.FoodID != nil {
+		foodID = *entry.FoodID
 	}
+	changed := newItem || (in.FoodID.Set && in.FoodID.Value != foodID)
 	if in.FoodID.Set {
-		entry.FoodID = &in.FoodID.Value
+		foodID = in.FoodID.Value
 	}
-	if entry.FoodID == nil || *entry.FoodID <= 0 {
-		return Invalid("food_id", "食物 ID 必填且须大于 0")
-	}
-	changed := newItem || oldFoodID == nil || *oldFoodID != *entry.FoodID
+	entry.FoodID = &foodID
 	if changed {
-		food, err := s.store.Food(*entry.FoodID, false)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return Invalid("food_id", "引用的食物不存在")
-		}
+		food, err := s.store.Food(foodID)
 		if err != nil {
 			return err
 		}
 		entry.Snapshot = model.Snapshot{Name: food.Name, BasisUnit: food.BasisUnit, NutritionPer100: food.NutritionPer100}
-		if !in.Quantity.Set || !in.Unit.Set {
-			return Invalid("quantity", "选择新食物时须同时填写 quantity 和 unit")
-		}
-	}
-	if in.Unit.Set && !in.Quantity.Set {
-		return Invalid("quantity", "修改单位时须同时填写 quantity")
-	}
-	if in.Quantity.Set {
-		unit := entry.Snapshot.BasisUnit
-		if in.Unit.Set {
-			unit = in.Unit.Value
-		}
-		quantity, err := nutrition.Quantity(in.Quantity.Value, unit, entry.Snapshot.BasisUnit)
-		if err != nil {
-			return Invalid("quantity", err.Error())
-		}
-		entry.Quantity = &quantity
 	}
 	if changed || in.Quantity.Set {
-		totals, err := nutrition.Scale(entry.Snapshot.NutritionPer100, *entry.Quantity)
-		if err != nil {
-			return Invalid("quantity", err.Error())
-		}
-		entry.NutritionTotals = totals
+		quantity := nutrition.Quantity(in.Quantity.Value, in.Unit.Value)
+		entry.Quantity = &quantity
+		entry.NutritionTotals = nutrition.Scale(entry.Snapshot.NutritionPer100, quantity)
 	}
 	entry.RecipeID = nil
 	return nil
 }
 
 func (s *Service) applyRecipeEntry(entry *model.MealEntry, in EntryInput, newItem bool) error {
-	oldRecipeID := entry.RecipeID
-	if in.FoodID.Set || in.Quantity.Set || in.Unit.Set {
-		return Invalid("item_type", "菜品整道计入，不能填写 food_id、quantity 或 unit")
+	var recipeID int64
+	if entry.RecipeID != nil {
+		recipeID = *entry.RecipeID
 	}
+	changed := newItem || (in.RecipeID.Set && in.RecipeID.Value != recipeID)
 	if in.RecipeID.Set {
-		entry.RecipeID = &in.RecipeID.Value
+		recipeID = in.RecipeID.Value
 	}
-	if entry.RecipeID == nil || *entry.RecipeID <= 0 {
-		return Invalid("recipe_id", "菜品 ID 必填且须大于 0")
-	}
-	changed := newItem || oldRecipeID == nil || *oldRecipeID != *entry.RecipeID
+	entry.RecipeID = &recipeID
 	if changed {
-		recipe, err := s.store.Recipe(*entry.RecipeID, false)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return Invalid("recipe_id", "引用的菜品不存在")
-		}
+		recipe, err := s.store.Recipe(recipeID)
 		if err != nil {
 			return err
 		}

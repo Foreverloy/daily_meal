@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Daily Meal V1 API",
-    "version": "1.0.0",
-    "description": "个人饮食管理后端。业务时区默认 Asia/Shanghai。所有营养计算由 Go 完成，未知值保留 null。V1 不含登录或多用户。"
+    "version": "2.0.0",
+    "description": "个人饮食管理后端，学习优先的业务主干实现。业务时区默认 Asia/Shanghai，营养计算由 Go 完成，未知值保留 null；不含登录或多用户。2.0.0 为破坏性契约版本，路由仍为 /api/v1：移除严格业务校验和 Idempotency-Key 创建去重，重复创建可能产生多条记录；不保证跨操作事务或并发一致性。请求 schema 中的必填、范围、枚举及组合表示调用方应遵守的合法输入约定，不是服务逐项校验的承诺；保留语法、类型与参数解析错误。未知请求结构字段忽略，营养对象的键由调用方按已支持的指标提交。当前尚未覆盖产品文档中的校验、配方原子保存和 Agent 重试去重验收要求。"
   },
   "servers": [
     {
@@ -37,9 +37,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -89,9 +86,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -132,9 +126,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -199,9 +190,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -259,9 +247,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -310,9 +295,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -381,9 +363,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -414,9 +393,9 @@
             "schema": {
               "type": "integer",
               "default": 1,
-              "minimum": 1,
-              "maximum": 1000000
-            }
+              "minimum": 1
+            },
+            "description": "调用方应提供有效的正整数；服务解析整数但不校验范围。"
           },
           {
             "name": "page_size",
@@ -425,9 +404,9 @@
             "schema": {
               "type": "integer",
               "default": 20,
-              "minimum": 1,
-              "maximum": 100
-            }
+              "minimum": 1
+            },
+            "description": "调用方应提供有效的正整数；服务解析整数但不校验范围。"
           }
         ],
         "description": "收藏条件与名称搜索同时生效；total 以当前筛选条件为准，按 id 倒序分页。favorite=true 只查询已收藏，省略或 false 查询全部，不提供仅未收藏的范围。"
@@ -472,9 +451,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -545,9 +521,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -605,9 +578,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -733,9 +703,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -756,9 +723,9 @@
             "schema": {
               "type": "integer",
               "default": 1,
-              "minimum": 1,
-              "maximum": 1000000
-            }
+              "minimum": 1
+            },
+            "description": "调用方应提供有效的正整数；服务解析整数但不校验范围。"
           },
           {
             "name": "page_size",
@@ -767,9 +734,9 @@
             "schema": {
               "type": "integer",
               "default": 20,
-              "minimum": 1,
-              "maximum": 100
-            }
+              "minimum": 1
+            },
+            "description": "调用方应提供有效的正整数；服务解析整数但不校验范围。"
           }
         ]
       },
@@ -853,9 +820,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -970,9 +934,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -1070,9 +1031,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -1204,9 +1162,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -1245,7 +1200,7 @@
         ],
         "responses": {
           "201": {
-            "description": "创建成功，或返回相同请求标识首次成功的结果",
+            "description": "创建成功，返回本次新建的记录",
             "content": {
               "application/json": {
                 "schema": {
@@ -1316,14 +1271,8 @@
           "400": {
             "$ref": "#/components/responses/Error400"
           },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -1345,22 +1294,7 @@
             }
           }
         },
-        "description": "可选 Idempotency-Key 仅用于本接口创建去重。不传时正常创建；传入后，相同标识和相同解析后的输入返回首次成功响应（201），相同标识但输入不同返回 409。调用方须在重试时复用原标识和输入，新操作使用新标识。只有成功结果会保存，失败可以用原标识重试。修改或删除原记录不改变保存的首次响应。标识在当前单人实例内唯一，V1 持续保留，不自动过期；未来多用户须增加用户隔离。省略 date 的输入在重试时仍返回首次记录日期，JSON 字段顺序和数值写法不影响匹配，但不同单位写法或字段省略与显式提供视为不同输入。",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "description": "每次操作由调用方生成的唯一标识，例如 UUID；重试复用。仅允许单个请求头值，空值或非法字符返回 400。",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9._:-]{1,128}$"
-            },
-            "example": "550e8400-e29b-41d4-a716-446655440000"
-          }
-        ]
+        "description": "每次成功请求创建一条记录，返回本次生成的快照。Idempotency-Key 请求头被忽略，不再提供创建去重或响应重放；重复提交可能产生多条记录。date 省略时使用本次调用的业务日期。"
       }
     },
     "/api/v1/meal-entries/{id}": {
@@ -1445,9 +1379,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -1548,9 +1479,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -1596,9 +1524,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
           },
           "500": {
             "$ref": "#/components/responses/Error500"
@@ -1834,9 +1759,6 @@
           "404": {
             "$ref": "#/components/responses/Error404"
           },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
           "500": {
             "$ref": "#/components/responses/Error500"
           }
@@ -1991,7 +1913,7 @@
         "required": [
           "energy_kcal"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "NutritionPatch": {
         "type": "object",
@@ -2053,7 +1975,7 @@
           }
         },
         "required": [],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "Amount": {
         "type": "object",
@@ -2148,7 +2070,7 @@
           "carbohydrate_percent",
           "fat_percent"
         ],
-        "additionalProperties": false,
+        "additionalProperties": true,
         "description": "供能百分比合计为 100，克数按蛋白质/碳水 4 kcal/g、脂肪 9 kcal/g 推导。"
       },
       "Targets": {
@@ -2327,8 +2249,8 @@
           "basis_unit",
           "nutrition_per_100"
         ],
-        "additionalProperties": false,
-        "description": "新建食物初始为未收藏；通过 PATCH 主动收藏，创建请求不接受 favorite 字段。"
+        "additionalProperties": true,
+        "description": "新建食物初始为未收藏；通过 PATCH 主动收藏。创建请求中的 favorite 不参与保存，与其他未知字段一样被忽略。"
       },
       "FoodPatch": {
         "type": "object",
@@ -2343,12 +2265,12 @@
           },
           "favorite": {
             "type": "boolean",
-            "description": "true 收藏，false 取消收藏；省略时保留原状态，不接受 null。"
+            "description": "true 收藏，false 取消收藏；省略时保留原状态。合法输入约定为布尔值，调用方不应传 null。"
           }
         },
         "required": [],
-        "additionalProperties": false,
-        "description": "只更新提供的字段；营养对象逐字段合并，可选营养显式 null 清空，热量不可为空；basis_unit 创建后不可修改。 favorite 可收藏或取消收藏，省略时保留原状态，不接受 null；重复设置保持相同收藏状态。"
+        "additionalProperties": true,
+        "description": "只更新提供的字段；营养对象逐字段合并，可选营养显式 null 清空。调用方应保证热量不为空。basis_unit 创建后不可修改，该字段和其他未知请求字段会被忽略。favorite 可收藏或取消收藏，省略保留原状态；重复设置保持相同收藏状态。"
       },
       "IngredientInput": {
         "type": "object",
@@ -2379,7 +2301,7 @@
           "quantity",
           "unit"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "IngredientSnapshot": {
         "type": "object",
@@ -2440,7 +2362,7 @@
           "name",
           "ingredients"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "Recipe": {
         "type": "object",
@@ -2665,7 +2587,7 @@
           "quantity",
           "unit"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "RecipeEntryInput": {
         "type": "object",
@@ -2700,7 +2622,7 @@
           "item_type",
           "recipe_id"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "EntryInput": {
         "oneOf": [
@@ -2711,7 +2633,7 @@
             "$ref": "#/components/schemas/RecipeEntryInput"
           }
         ],
-        "description": "date 省略使用业务时区今天。菜品不接受 quantity/unit。"
+        "description": "date 省略使用业务时区今天。调用方应按食物或菜品的合法输入结构提交；菜品整道计入，不应提交 quantity/unit。"
       },
       "EntryPatch": {
         "type": "object",
@@ -2763,8 +2685,8 @@
           }
         },
         "required": [],
-        "additionalProperties": false,
-        "description": "字段省略保留，不接受 null。只改日期/餐次保持快照；同一食物只改 quantity 使用原快照且默认原基准单位；提供 unit 必须同时给 quantity。更换食物须给 food_id、quantity、unit；跨类型时须给 item_type 和新引用 ID，旧引用自动清空，不要提交旧引用。同一 ID 不刷新快照。"
+        "additionalProperties": true,
+        "description": "字段省略保留。只改日期/餐次保持快照；同一食物只改 quantity 使用原快照且默认原基准单位。调用方应保证：字段不为 null，提供 unit 时同时提供 quantity；更换食物提供 food_id、quantity、unit；跨类型时提供 item_type 和新引用 ID，不提交旧引用。旧引用自动清空，同一 ID 不刷新快照。这些组合要求为合法输入约定，服务不逐项检查。"
       },
       "Comparison": {
         "type": "object",
@@ -2869,10 +2791,8 @@
                 "type": "string",
                 "enum": [
                   "bad_request",
-                  "validation_error",
                   "not_found",
-                  "internal_error",
-                  "idempotency_conflict"
+                  "internal_error"
                 ]
               },
               "message": {
@@ -2987,7 +2907,7 @@
     },
     "responses": {
       "Error400": {
-        "description": "JSON 格式、字段或类型错误",
+        "description": "JSON 语法、类型或参数解析错误",
         "content": {
           "application/json": {
             "schema": {
@@ -2996,7 +2916,7 @@
             "example": {
               "error": {
                 "code": "bad_request",
-                "message": "JSON 格式、字段或类型错误",
+                "message": "参数解析失败",
                 "fields": {}
               }
             }
@@ -3020,25 +2940,6 @@
           }
         }
       },
-      "Error422": {
-        "description": "业务参数不合法",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            },
-            "example": {
-              "error": {
-                "code": "validation_error",
-                "message": "业务参数不合法",
-                "fields": {
-                  "quantity": "数量必须大于 0"
-                }
-              }
-            }
-          }
-        }
-      },
       "Error500": {
         "description": "内部错误",
         "content": {
@@ -3051,25 +2952,6 @@
                 "code": "internal_error",
                 "message": "内部错误",
                 "fields": {}
-              }
-            }
-          }
-        }
-      },
-      "Error409": {
-        "description": "请求标识已用于不同内容",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            },
-            "example": {
-              "error": {
-                "code": "idempotency_conflict",
-                "message": "请求标识已用于不同的饮食记录内容",
-                "fields": {
-                  "Idempotency-Key": "同一标识重试时须使用相同内容；新的操作请使用新标识"
-                }
               }
             }
           }

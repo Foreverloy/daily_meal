@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,21 +21,15 @@ func TestTransportErrors(t *testing.T) {
 		method, path, body string
 		status             int
 	}{
-		{"POST", "/api/v1/foods", `null`, 400},
 		{"POST", "/api/v1/foods", `[]`, 400},
 		{"POST", "/api/v1/foods", `{`, 400},
 		{"POST", "/api/v1/foods", `{} {}`, 400},
 		{"POST", "/api/v1/foods", `{"name":123}`, 400},
-		{"POST", "/api/v1/foods", `{"unknown":true}`, 400},
-		{"PATCH", "/api/v1/foods/1", `{"basis_unit":"ml"}`, 400},
-		{"POST", "/api/v1/foods", `{"favorite":true}`, 400},
-		{"POST", "/api/v1/meal-entries", `{"request_id":"unexpected"}`, 400},
 		{"PATCH", "/api/v1/foods/1", `{"favorite":"true"}`, 400},
-		{"GET", "/api/v1/foods/nope", ``, 422},
-		{"GET", "/api/v1/foods/0", ``, 422},
-		{"GET", "/api/v1/foods?page=invalid", ``, 422},
-		{"GET", "/api/v1/foods?favorite=invalid", ``, 422},
-		{"GET", "/api/v1/foods?favorite=", ``, 422},
+		{"GET", "/api/v1/foods/nope", ``, 400},
+		{"GET", "/api/v1/foods?page=invalid", ``, 400},
+		{"GET", "/api/v1/foods?favorite=invalid", ``, 400},
+		{"GET", "/api/v1/foods?favorite=", ``, 400},
 		{"GET", "/missing", ``, 404},
 		{"GET", "/healthz", ``, 500},
 	} {
@@ -55,41 +50,6 @@ func TestTransportErrors(t *testing.T) {
 	}
 }
 
-func TestEntryIdempotencyHeaderErrors(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := New(nil, nil, openapi.Document)
-	for _, tc := range []struct {
-		name   string
-		values []string
-	}{
-		{"empty", []string{""}},
-		{"too long", []string{strings.Repeat("a", 129)}},
-		{"whitespace", []string{"key with space"}},
-		{"non ASCII", []string{"午餐"}},
-		{"multiple headers", []string{"key-1", "key-2"}},
-		{"comma separated", []string{"key-1,key-2"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			request := httptest.NewRequest("POST", "/api/v1/meal-entries", strings.NewReader(`{}`))
-			request.Header["Idempotency-Key"] = tc.values
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, request)
-			var envelope struct {
-				Error struct {
-					Code   string
-					Fields map[string]string
-				}
-			}
-			if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
-				t.Fatal(err)
-			}
-			if w.Code != 400 || envelope.Error.Code != "bad_request" || envelope.Error.Fields["Idempotency-Key"] == "" {
-				t.Fatalf("invalid key response=%d %s", w.Code, w.Body)
-			}
-		})
-	}
-}
-
 func TestHealthAndOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := New(nil, func(context.Context) error { return nil }, openapi.Document)
@@ -99,5 +59,18 @@ func TestHealthAndOpenAPI(t *testing.T) {
 		if response.Code != 200 || !json.Valid(response.Body.Bytes()) {
 			t.Fatalf("%s: %d %s", path, response.Code, response.Body)
 		}
+	}
+}
+
+func TestResponseEncodingFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/result", func(c *gin.Context) {
+		respond(c, http.StatusOK, gin.H{"total": math.Inf(1)}, nil)
+	})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/result", nil))
+	if w.Code != http.StatusInternalServerError || !json.Valid(w.Body.Bytes()) {
+		t.Fatalf("encoding failure returned success or invalid JSON: %d %s", w.Code, w.Body)
 	}
 }

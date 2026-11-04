@@ -132,7 +132,7 @@ func TestIntegrationFoodFavorites(t *testing.T) {
 	}
 }
 
-func TestIntegrationFoodFavoriteValidation(t *testing.T) {
+func TestIntegrationFoodFavoriteErrors(t *testing.T) {
 	f := setup(t)
 	food := f.food(t, "牛奶", "ml", nutrition.Values{"energy_kcal": nutrition.Number(60)})
 	endpoint := path("foods", food.ID)
@@ -143,11 +143,9 @@ func TestIntegrationFoodFavoriteValidation(t *testing.T) {
 		body   map[string]any
 		status int
 	}{
-		{"null with name change", map[string]any{"name": "不能保存", "favorite": nil}, 422},
 		{"string", map[string]any{"favorite": "false"}, 400},
 		{"number", map[string]any{"favorite": 0}, 400},
-		{"invalid name", map[string]any{"name": "", "favorite": false}, 422},
-		{"invalid nutrition", map[string]any{"nutrition_per_100": map[string]any{"energy_kcal": -1}, "favorite": false}, 422},
+		{"database rejects name", map[string]any{"name": "", "favorite": false}, 500},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f.request(t, "PATCH", endpoint, tc.body, tc.status)
@@ -160,19 +158,12 @@ func TestIntegrationFoodFavoriteValidation(t *testing.T) {
 	for _, favorite := range []bool{true, false} {
 		f.request(t, "PATCH", "/api/v1/foods/99999", map[string]any{"favorite": favorite}, 404)
 	}
-	f.request(t, "POST", "/api/v1/foods", map[string]any{
-		"name": "不得自动收藏", "basis_unit": "g", "nutrition_per_100": map[string]any{"energy_kcal": 100}, "favorite": true,
-	}, 400)
 	for _, value := range []string{"invalid", "null", ""} {
-		f.request(t, "GET", "/api/v1/foods?favorite="+value, nil, 422)
+		f.request(t, "GET", "/api/v1/foods?favorite="+value, nil, 400)
 	}
 	// 菜品列表沿用原规则，忽略与其无关的查询参数。
 	f.request(t, "GET", "/api/v1/recipes?favorite=invalid", nil, 200)
-	var count int64
-	if err := f.db.Model(&model.Food{}).Count(&count).Error; err != nil || count != 1 {
-		t.Fatalf("invalid favorite request created a food: count=%d err=%v", count, err)
-	}
-	// 数据库拒绝取消收藏时，名称与收藏状态都必须回滚，并返回失败。
+	// 名称与收藏状态由一条 UPDATE 保存，数据库失败时直接返回错误。
 	if err := f.db.Exec("ALTER TABLE foods ADD CONSTRAINT test_favorite_write_failure CHECK (favorite)").Error; err != nil {
 		t.Fatal(err)
 	}

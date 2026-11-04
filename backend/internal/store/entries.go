@@ -5,9 +5,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *Store) Entry(id int64, forUpdate bool) (*model.MealEntry, error) {
+func (s *Store) Entry(id int64) (*model.MealEntry, error) {
 	var entry model.MealEntry
-	err := lock(s.db, forUpdate).First(&entry, id).Error
+	err := s.db.First(&entry, id).Error
 	return &entry, err
 }
 

@@ -50,7 +50,7 @@ func (h *Handler) foods(c *gin.Context) {
 	if c.Request.URL.Query().Has("favorite") {
 		value, err := strconv.ParseBool(c.Query("favorite"))
 		if err != nil {
-			writeError(c, service.Invalid("favorite", "须为布尔值"))
+			badRequest(c, err)
 			return
 		}
 		p.Favorite = &value
@@ -136,15 +136,12 @@ func (h *Handler) entries(c *gin.Context) {
 }
 
 func (h *Handler) createEntry(c *gin.Context) {
-	key, ok := entryIdempotencyKey(c)
-	if !ok {
-		return
-	}
 	var in service.EntryInput
 	if !decode(c, &in) {
 		return
 	}
-	v, err := h.service.CreateEntry(in, key)
+	// TODO：暂未对重复请求去重，重复提交会创建多条记录，Idempotency-Key 不生效。
+	v, err := h.service.SaveEntry(0, in)
 	respond(c, http.StatusCreated, v, err)
 }
 

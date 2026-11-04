@@ -2,9 +2,9 @@ package store
 
 import "dailymeal/backend/internal/model"
 
-func (s *Store) Food(id int64, forUpdate bool) (*model.Food, error) {
+func (s *Store) Food(id int64) (*model.Food, error) {
 	var food model.Food
-	err := lock(s.db, forUpdate).First(&food, id).Error
+	err := s.db.First(&food, id).Error
 	return &food, err
 }
 

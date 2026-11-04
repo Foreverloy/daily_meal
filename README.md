@@ -2,6 +2,10 @@
 
 个人饮食管理工具。本仓库仅维护 Go 后端，已实现每日目标、食物库、固定菜品、三餐记录和营养汇总。后端交付范围见[后端产品文档 V1](docs/backend_product_v1.md)，共同业务规则与整体规划见[总产品文档 V1](docs/product_v1.md)（首版待审查，后续修改须经用户确认），技术实现见 [后端实现文档](docs/implementation_v1.md)，完整接口契约见 [OpenAPI](backend/openapi/openapi.json)。
 
+当前采用学习优先的主干实现，默认调用方提供符合业务约定的参数，保留请求解析、计算、保存和直接错误返回。严格参数校验、跨操作事务、行锁和创建幂等已移除；未覆盖产品文档中校验、配方原子保存和 Agent 重试去重的验收要求，不能据此认定产品验收完成。相关缺口写在代码 `TODO` 中，产品文档的约定与状态没有改变。
+
+这次调整是破坏性接口变化，OpenAPI 契约版本为 `2.0.0`，路由仍保留 `/api/v1`。旧调用方不能再依赖 `422` 业务校验、`409` 幂等冲突或 `Idempotency-Key` 去重。
+
 ## 启动
 
 安装 Docker 和 Compose 后，在仓库根目录执行：
@@ -47,13 +51,13 @@ Go 程序读取环境变量，不会自动加载 `.env`，所以每次在新终�
 
 ```text
 backend/
-  cmd/api/          HTTP 服务入口、依赖组装、优雅退出
+  cmd/api/          HTTP 服务入口、依赖组装和启动监听
   cmd/migrate/      Goose 迁移入口
   internal/
     config/         环境变量、业务时区
-    database/       GORM 和 PostgreSQL 连接池
+    database/       GORM 和 PostgreSQL 连接
     httpapi/        路由、JSON 解析、HTTP 状态和统一错误
-    service/        目标、食物、菜品、记录和汇总业务；事务边界
+    service/        目标、食物、菜品、记录和汇总业务
     store/          按业务拆分的 GORM 查询
     model/          六张业务表的模型和历史快照结构
     nutrition/      营养字段定义、单位换算、缺失数据汇总
@@ -65,7 +69,7 @@ backend/
 
 建议先看 `internal/httpapi/router.go`，再从 `handlers.go` 跟进对应的 `service/*.go` 和 `store/*.go`；最后读 `nutrition.go` 和接口集成测试。创建饮食记录的入口是 `Service.SaveEntry`，每日汇总的入口是 `Service.DailySummary`。
 
-业务服务负责事务。涉及多次查询的配方读取、快照创建和每日汇总使用 PostgreSQL `REPEATABLE READ`，保证同一次操作看到一致数据；PATCH 和配方替换先锁定被修改行。数据库迁移使用显式 SQL，不使用 GORM AutoMigrate。
+业务流程直接顺序查询和写入，不额外开启跨操作事务或行锁；并发读取可能看到不同时间的数据，多步写入失败可能留下部分结果。启动流程不设置专门的连接池参数或优雅停机流程，进程退出时不等待在途请求完成。框架自身的默认行为和数据库原有约束保留。数据库迁移使用显式 SQL，不使用 GORM AutoMigrate。
 
 数量和目标在 PostgreSQL 中使用 `NUMERIC`，营养及快照使用 `JSONB`。Go 使用 `float64` 保留中间计算精度，不逐项取整，显示格式由调用方决定。
 
@@ -83,19 +87,17 @@ backend/
 | 饮食详情、修改、删除 | `GET/PATCH/DELETE /api/v1/meal-entries/{id}` |
 | 每日汇总 | `GET /api/v1/daily-summary?date=YYYY-MM-DD` |
 
-食物、菜品列表支持 `q`、`page`、`page_size`，返回 `items/page/page_size/total`；默认 20 条，最多 100 条，按 ID 倒序。饮食列表要求 `date`，可选 `meal_type`，按 ID 正序。每日汇总要求 `date`。只有创建饮食记录时可省略日期，使用业务时区今天。
+食物、菜品列表支持 `q`、`page`、`page_size`，返回 `items/page/page_size/total`；默认第 1 页、每页 20 条，按 ID 倒序。分页范围由调用方保证有效，服务不再校验最多 100 条。饮食列表要求 `date`，可选 `meal_type`，按 ID 正序。每日汇总要求 `date`。只有创建饮食记录时可省略日期，使用业务时区今天。
 
 默认目标首次查询返回 `null`；日期目标返回 `{date, source, goal}`，`source` 为 `default/override/none`。营养指标覆盖热量、三大营养素、钠、钙、维生素 C 和 D；单位由字段名确定。
 
-PATCH 省略字段保留原值。食物营养逐字段更新，显式 `null` 将可选营养改为未知；热量不能清空。食物基准单位创建后固定。饮食 PATCH 仅改数量时默认原快照的 g/ml 基准；给 `unit` 时必须同时给 `quantity`。更换食物需要数量和单位，跨食物/菜品切换需要 `item_type` 和新引用 ID，旧引用自动清空。再次提交同一 ID 不刷新历史快照。
+PATCH 省略字段保留原值。食物营养逐字段更新，显式 `null` 将可选营养改为未知；调用方应保证热量不为空。食物基准单位创建后固定。饮食 PATCH 仅改数量时默认原快照的 g/ml 基准；调用方提供 `unit` 时应同时给 `quantity`。更换食物需要数量和单位，跨食物/菜品切换需要 `item_type` 和新引用 ID，旧引用自动清空。再次提交同一 ID 不刷新历史快照。这些输入约定不代表服务会完整检查非法组合。
 
-创建饮食记录 `POST /api/v1/meal-entries` 可选传入 `Idempotency-Key` 请求头，例如 UUID。每次操作生成新标识，重试复用原标识和输入；相同标识及输入返回首次成功响应（仍为 `201`），不同输入返回 `409 idempotency_conflict`。不传时正常创建。标识仅允许单个 1～128 字符的值，字符为字母、数字及 `. _ : -`，非法值返回 `400`。JSON 字段顺序和数值写法不影响匹配；字段省略与显式提供、不同单位写法视为不同输入。
+创建饮食记录 `POST /api/v1/meal-entries` 每次成功请求都会新建一条记录，`Idempotency-Key` 请求头被忽略；重复提交可能产生重复记录。原有迁移 3 和 `meal_entry_requests` 表继续保留，避免修改已有迁移历史，但当前业务代码不再读写旧幂等结果。
 
-幂等结果与饮食记录在同一事务保存，只有成功操作占用标识；失败可用原标识重试。首次响应独立持久化，修改食物、配方或记录，以及删除记录都不改变重试结果；省略日期的请求跨日重试仍返回首次日期。V1 单人实例内持续保留标识，无自动过期。回滚迁移 3 会清除这些标识和结果，但保留饮食记录，仅用于可丢弃环境。
+菜品记录整道计入，调用方不应填写数量、单位或份数。汇总的 `known_total=null` 表示全部未知，`complete=false` 表示存在缺失；空餐/空日为 `0/true`。`comparison` 仅包含热量与三大营养素，目标缺失或摄入不完整时 `remaining=null`。
 
-菜品记录整道计入，不能填写数量、单位或份数。汇总的 `known_total=null` 表示全部未知，`complete=false` 表示存在缺失；空餐/空日为 `0/true`。`comparison` 仅包含热量与三大营养素，目标缺失或摄入不完整时 `remaining=null`。
-
-创建返回 `201`，查询/修改返回 `200`，删除返回 `204`。错误形如 `{"error":{"code":"validation_error","message":"业务参数不合法","fields":{"quantity":"数量必须大于 0"}}}`，格式/未知请求字段错误为 `400`，资源不存在为 `404`，幂等内容冲突为 `409`，业务校验为 `422`，内部错误为 `500`。
+创建返回 `201`，查询/修改返回 `200`，删除返回 `204`。JSON 语法或类型错误，以及 ID、分页、布尔值、日期的解析错误返回 `400 bad_request`；资源不存在返回 `404 not_found`；数据库等其他错误返回 `500 internal_error`。错误形如 `{"error":{"code":"bad_request","message":"参数解析失败","fields":{}}}`，内部错误不暴露数据库细节。未知的请求结构字段（如创建食物时的 `favorite`）会被忽略，不再返回 `400`；`nutrition_per_100` 的营养键仍应按文档定义提交。参数的必填、范围、枚举和组合条件是调用方应遵守的约定，不承诺逐项检查；数据库原有约束拒绝写入时按数据库错误返回。
 
 ## 验证
 
@@ -113,7 +115,7 @@ export TEST_DATABASE_URL='postgres://dailymeal:dailymeal@localhost:5433/dailymea
 make test-integration
 ```
 
-测试覆盖迁移 up/down/up、历史目标和覆盖优先级、单位换算、未知/零/部分已知、配方事务回滚、历史快照、数量修改、跨类型切换、补记/移动/删除、目标剩余值，以及 OpenAPI 请求和响应匹配。CI 使用 PostgreSQL 17，执行 race 检测、静态检查和构建。
+测试围绕迁移 up/down/up、历史目标和覆盖优先级、单位换算、未知/零/部分已知、配方保存、历史快照、数量修改、跨类型切换、补记/移动/删除、目标剩余值，以及 OpenAPI 请求和响应匹配。验证通过仅表示当前实现范围通过，不代表已满足严格校验、配方原子性或重试去重的产品验收要求。CI 使用 PostgreSQL 17，执行 race 检测、静态检查和构建。
 
 ## 后续开发
 
