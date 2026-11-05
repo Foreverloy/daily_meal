@@ -145,4 +145,4 @@ curl http://127.0.0.1:8080/api/v1/chat \
 
 Agent 报错时，Go 保存已返回的工具结果并返回 `502 agent_error`。每次 POST 都独立执行，重复发送可能重复记餐；目前没有请求去重、自动重试或跨工具事务。进程或连接中断可能留下 `running` 或缺少部分工具结果，先检查实际饮食数据。
 
-Docker Compose 将本地 YAML 挂载到 Go 容器的 `/config/agent.yaml`。使用 Agent 仓库的 Compose 同时启动服务时，将 YAML 的 `agent_url` 改为 `http://agent:8000`；模型 `base_url` 也须能从 Agent 容器访问。配置只挂载给 Go，不打包进镜像。
+Docker Compose 将本地 YAML 挂载到 Go 容器的 `/app/config/agent.yaml`，与镜像的工作目录 `/app` 对应。使用 Agent 仓库的 Compose 同时启动服务时，将 YAML 的 `agent_url` 改为 `http://agent:8000`；模型 `base_url` 也须能从 Agent 容器访问。配置只挂载给 Go，不打包进镜像。

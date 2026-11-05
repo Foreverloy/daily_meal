@@ -1,14 +1,30 @@
-FROM golang:1.25-bookworm AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -o /out/api ./cmd/api && \
-    CGO_ENABLED=0 go build -trimpath -o /out/migrate ./cmd/migrate
+# 单阶段镜像：保留 Go 工具和源码，方便观察。
+# 从仓库根目录构建：docker build -t daily-meal backend
 
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/api /api
-COPY --from=build /out/migrate /migrate
+# 使用包含 Go 1.25 编译工具的基础镜像。
+FROM golang:1.25
+
+# 后续指令的工作目录；容器启动时也默认使用这个目录。
+WORKDIR /app
+
+# 从构建上下文 backend/ 复制依赖清单到 /app/。
+COPY go.mod go.sum ./
+
+# 构建时下载 Go 依赖，不启动 API，也不连接业务数据库。
+RUN go mod download
+
+# 把构建上下文中的文件复制到 /app/，忽略规则见 .dockerignore。
+COPY . .
+
+# 构建时编译 API，生成 /app/bin/api。
+RUN go build -o bin/api ./cmd/api
+
+# 构建时编译迁移程序，生成 /app/bin/migrate；SQL 通过 go:embed 嵌入程序。
+RUN go build -o bin/migrate ./cmd/migrate
+
 ENV GIN_MODE=release
 EXPOSE 8080
-ENTRYPOINT ["/api"]
+
+# 记录默认启动命令；创建并运行容器时才执行 API。
+# DATABASE_URL 在运行时传入，HTTP_ADDR 默认是 :8080。
+CMD ["/app/bin/api"]

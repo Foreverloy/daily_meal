@@ -17,8 +17,7 @@ services:
 
   migrate:
     build: ./backend
-    entrypoint: ["/migrate"]
-    command: ["up"]
+    command: ["/app/bin/migrate", "up"]
     environment:
       DATABASE_URL: postgres://dailymeal:${POSTGRES_PASSWORD:-dailymeal}@db:5432/dailymeal?sslmode=disable
     depends_on:
@@ -27,9 +26,8 @@ services:
 
   api:
     build: ./backend
-    working_dir: /
     volumes:
-      - ./backend/config/agent.yaml:/config/agent.yaml:ro
+      - ./backend/config/agent.yaml:/app/config/agent.yaml:ro
     environment:
       DATABASE_URL: postgres://dailymeal:${POSTGRES_PASSWORD:-dailymeal}@db:5432/dailymeal?sslmode=disable
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Asia/Shanghai}
