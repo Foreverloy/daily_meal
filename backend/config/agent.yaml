@@ -1,6 +1,6 @@
 # 当前固定读取 default；填写模型名和 API Key 后即可使用。
 default:
-  agent_url: "http://127.0.0.1:8000"
+  agent_url: "http://agent:8000"
   api_key: "replace-with-your-api-key"
   base_url: "https://api.openai.com/v1"
   model: "replace-with-your-model-id"
