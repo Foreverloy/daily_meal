@@ -27,6 +27,7 @@ services:
 
   api:
     build: ./backend
+    working_dir: /
     volumes:
       - ./backend/config/agent.yaml:/config/agent.yaml:ro
     environment:
