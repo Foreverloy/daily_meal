@@ -8,6 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func (h *Handler) chat(c *gin.Context) {
+	var in service.ChatInput
+	if !decode(c, &in) {
+		return
+	}
+	v, err := h.service.Chat(c.Request.Context(), in)
+	respond(c, http.StatusOK, v, err)
+}
+
 func (h *Handler) defaultGoal(c *gin.Context) {
 	v, err := h.service.DefaultGoal()
 	respond(c, http.StatusOK, v, err)

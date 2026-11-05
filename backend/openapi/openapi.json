@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Daily Meal V1 API",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "个人饮食管理后端，学习优先的业务主干实现。业务时区默认 Asia/Shanghai，营养计算由 Go 完成，未知值保留 null；不含登录或多用户。2.0.0 为破坏性契约版本，路由仍为 /api/v1：移除严格业务校验和 Idempotency-Key 创建去重，重复创建可能产生多条记录；不保证跨操作事务或并发一致性。请求 schema 中的必填、范围、枚举及组合表示调用方应遵守的合法输入约定，不是服务逐项校验的承诺；保留语法、类型与参数解析错误。未知请求结构字段忽略，营养对象的键由调用方按已支持的指标提交。当前尚未覆盖产品文档中的校验、配方原子保存和 Agent 重试去重验收要求。"
   },
   "servers": [
@@ -1776,6 +1776,54 @@
           }
         ]
       }
+    },
+    "/api/v1/chat": {
+      "post": {
+        "summary": "执行一轮独立对话并保存记录，不加载历史",
+        "description": "Go 固定读取 config/agent.yaml 的 default 模型配置并传给 Python Agent。只提交当前消息，记录仅保存、不用于上下文或重放；重复提交独立执行，可能重复写入饮食数据。",
+        "operationId": "post_api_v1_chat",
+        "tags": [
+          "chat"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "执行完成且本轮记录已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "502": {
+            "description": "Agent 调用失败；部分操作可能已经保存，应先查看实际饮食数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2792,7 +2840,8 @@
                 "enum": [
                   "bad_request",
                   "not_found",
-                  "internal_error"
+                  "internal_error",
+                  "agent_error"
                 ]
               },
               "message": {
@@ -2903,6 +2952,86 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "ChatInput": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "ToolResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "arguments",
+          "result"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "result": {
+            "nullable": true
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "message",
+          "reply",
+          "status",
+          "tool_results",
+          "error",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reply": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ]
+          },
+          "tool_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolResult"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "responses": {

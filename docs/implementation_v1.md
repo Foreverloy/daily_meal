@@ -253,3 +253,15 @@ V1 通过接口维护结构化数据。以后导入截图或公共数据时，�
 - 推荐中的单次配方调整不修改模板，也不自动计入实际饮食；记录该菜品时保存本次实际配方及营养快照。
 - 当前 Go API 不支持 `Idempotency-Key` 去重，Agent 不能依赖自动重试不会重复写入；产品要求的重试去重需在后续明确实现后再接入。
 - Agent 检查点与 Go 业务表分别管理；流式响应使用 SSE。定时任务、Redis + Asynq 和 OpenTelemetry 按后续学习阶段接入。
+
+## 8. 单轮对话接入（当前实现）
+
+新增调用路径为：网页 → `POST /api/v1/chat` → `Service.Chat` → Python Agent → Go 业务 API。最终回复返回后，`Service.Chat` 更新 PostgreSQL 的 `chat_requests` 记录。
+
+- `config/agent.yaml` 的 `default` 保存本地默认模型配置；`config.LoadAgent` 在每次对话时读取。
+- `internal/agent/client.go` 通过 HTTP 传递当前消息和 `model_settings`，模型配置不进入数据库或前端响应。
+- Goose `00004_add_chat_requests.sql` 建立单轮记录表，保存消息、回复、工具结果、执行状态和错误。
+- 每次请求独立执行。历史记录目前只保存、不读取，无会话管理和请求重放；重复 POST 可能重复执行写入。
+- Agent 将已收到的工具结果随成功或失败响应交回 Go。中断时可能缺失执行结果，相关 TODO 保留在 `service/chat.go`。
+
+本节记录用户确认的单轮实现范围，不修改产品文档或产品审查状态。

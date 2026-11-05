@@ -27,6 +27,7 @@ func New(svc *service.Service, ping func(context.Context) error, openAPI []byte)
 	r.NoRoute(func(c *gin.Context) { writeError(c, gorm.ErrRecordNotFound) })
 	h := &Handler{service: svc}
 	a := r.Group("/api/v1")
+	a.POST("/chat", h.chat)
 	a.GET("/goal-settings/default", h.defaultGoal)
 	a.PUT("/goal-settings/default", h.putDefaultGoal)
 	a.GET("/daily-goals/:date", h.dailyGoal)

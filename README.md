@@ -4,13 +4,14 @@
 
 当前采用学习优先的主干实现，默认调用方提供符合业务约定的参数，保留请求解析、计算、保存和直接错误返回。严格参数校验、跨操作事务、行锁和创建幂等已移除；未覆盖产品文档中校验、配方原子保存和 Agent 重试去重的验收要求，不能据此认定产品验收完成。相关缺口写在代码 `TODO` 中，产品文档的约定与状态没有改变。
 
-这次调整是破坏性接口变化，OpenAPI 契约版本为 `2.0.0`，路由仍保留 `/api/v1`。旧调用方不能再依赖 `422` 业务校验、`409` 幂等冲突或 `Idempotency-Key` 去重。
+当前 OpenAPI 契约版本为 `2.1.0`，路由仍保留 `/api/v1`，新增单轮聊天入口。此前 `2.0.0` 已移除 `422` 业务校验、`409` 幂等冲突和 `Idempotency-Key` 去重，旧调用方不能依赖这些行为。
 
 ## 启动
 
 安装 Docker 和 Compose 后，在仓库根目录执行：
 
 ```sh
+# 聊天前填写 backend/config/agent.yaml 中的模型名和 API Key
 docker compose up --build -d
 curl http://localhost:8080/healthz
 ```
@@ -51,15 +52,17 @@ Go 程序读取环境变量，不会自动加载 `.env`，所以每次在新终�
 
 ```text
 backend/
+  config/           Agent 默认 YAML 配置
   cmd/api/          HTTP 服务入口、依赖组装和启动监听
   cmd/migrate/      Goose 迁移入口
   internal/
-    config/         环境变量、业务时区
+    config/         环境变量、业务时区、默认模型配置读取
+    agent/          Python Agent 的 HTTP 客户端
     database/       GORM 和 PostgreSQL 连接
     httpapi/        路由、JSON 解析、HTTP 状态和统一错误
     service/        目标、食物、菜品、记录和汇总业务
     store/          按业务拆分的 GORM 查询
-    model/          六张业务表的模型和历史快照结构
+    model/          饮食模型、历史快照与单轮对话记录
     nutrition/      营养字段定义、单位换算、缺失数据汇总
   migrations/       嵌入二进制的 Goose SQL 迁移
   openapi/          接口请求、响应、单位、空值及示例
@@ -86,6 +89,7 @@ backend/
 | 饮食列表、创建 | `GET/POST /api/v1/meal-entries` |
 | 饮食详情、修改、删除 | `GET/PATCH/DELETE /api/v1/meal-entries/{id}` |
 | 每日汇总 | `GET /api/v1/daily-summary?date=YYYY-MM-DD` |
+| 单轮饮食助手 | `POST /api/v1/chat` |
 
 食物、菜品列表支持 `q`、`page`、`page_size`，返回 `items/page/page_size/total`；默认第 1 页、每页 20 条，按 ID 倒序。分页范围由调用方保证有效，服务不再校验最多 100 条。饮食列表要求 `date`，可选 `meal_type`，按 ID 正序。每日汇总要求 `date`。只有创建饮食记录时可省略日期，使用业务时区今天。
 
@@ -119,4 +123,26 @@ make test-integration
 
 ## 后续开发
 
-Python Agent、截图识别、对话记餐、菜单推荐、登录、异步任务和 SSE 按后续阶段推进。
+已接入 Python Agent 的单轮对话入口；截图识别、会话历史加载、登录、异步任务和 SSE 按后续阶段推进。
+
+## 单轮饮食助手
+
+网页的「饮食助手」向 Go 的 `POST /api/v1/chat` 发送当前消息。Go 读取默认模型配置，调用 Python Agent，保存本轮结果后返回。每条消息独立执行，暂不加载历史、建立会话或重放旧结果。
+
+仓库提供 `backend/config/agent.yaml` 默认配置。模型名和 API Key 初始为占位值，聊天前填写自己的值。
+
+在 `backend/config/agent.yaml` 的 `default` 中直接填写 `agent_url`、`api_key`、`base_url`、`model` 和 `use_responses_api`。当前固定读取这一项，没有配置选择或环境变量覆盖；每次聊天读取文件，修改后下一次请求生效。本机 `make run` 在 `backend` 目录运行，读取 `config/agent.yaml`。默认 YAML 随代码提交，没有新增 Git 忽略规则；以后填入的真实密钥不要加入代码提交。
+
+设置 `DATABASE_URL` 后运行 `make migrate` 和 `make run`。在相邻 `daily_meal_agent` 仓库安装依赖并启动 Agent，再从 `daily_meal_frontend` 启动网页；完整启动命令见各端 README。API Key 只配置在 Go 这一侧，Agent 的 `.env` 只需业务 API 地址与时区。
+
+```sh
+curl http://127.0.0.1:8080/api/v1/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"查一下今天吃了多少热量"}'
+```
+
+成功响应包含 `id`、`message`、`reply`、`status`、`tool_results` 和记录时间。Go 的 `chat_requests` 表保存消息、回复、工具结果和 `running/completed/failed` 状态，不保存模型配置或 Key。记录目前只写入，不提供历史查询、不读取为上下文。
+
+Agent 报错时，Go 保存已返回的工具结果并返回 `502 agent_error`。每次 POST 都独立执行，重复发送可能重复记餐；目前没有请求去重、自动重试或跨工具事务。进程或连接中断可能留下 `running` 或缺少部分工具结果，先检查实际饮食数据。
+
+Docker Compose 将本地 YAML 挂载到 Go 容器的 `/config/agent.yaml`。使用 Agent 仓库的 Compose 同时启动服务时，将 YAML 的 `agent_url` 改为 `http://agent:8000`；模型 `base_url` 也须能从 Agent 容器访问。配置只挂载给 Go，不打包进镜像。
