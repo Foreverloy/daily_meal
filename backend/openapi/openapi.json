@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Daily Meal V1 API",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "个人饮食管理后端，学习优先的业务主干实现。业务时区默认 Asia/Shanghai，营养计算由 Go 完成，未知值保留 null；不含登录或多用户。2.0.0 为破坏性契约版本，路由仍为 /api/v1：移除严格业务校验和 Idempotency-Key 创建去重，重复创建可能产生多条记录；不保证跨操作事务或并发一致性。请求 schema 中的必填、范围、枚举及组合表示调用方应遵守的合法输入约定，不是服务逐项校验的承诺；保留语法、类型与参数解析错误。未知请求结构字段忽略，营养对象的键由调用方按已支持的指标提交。当前尚未覆盖产品文档中的校验、配方原子保存和 Agent 重试去重验收要求。"
   },
   "servers": [
@@ -1824,6 +1824,139 @@
           }
         }
       }
+    },
+    "/api/v1/foods/from-image": {
+      "post": {
+        "summary": "识别单张营养截图并新建食物",
+        "description": "Python 提取原始数字与单位，Go 换算为每 100g/ml。支持 kJ/kcal 及营养素 g/mg/ug 换算。新增要求名称和热量；更新只写入识别到的营养，不清空缺项，禁止重量与体积互转。调用失败或截图信息不足时不写入。不自动匹配食物，不保存原图。重复创建可能产生多个食物。",
+        "operationId": "create_food_from_image",
+        "tags": [
+          "foods"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodImageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "返回实际保存后的食物",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Food"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "description": "截图缺少必要信息或基准与所选食物不同，未写入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "图片识别服务失败，未写入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
+    },
+    "/api/v1/foods/{id}/from-image": {
+      "patch": {
+        "summary": "识别单张营养截图并更新指定食物",
+        "description": "Python 提取原始数字与单位，Go 换算为每 100g/ml。支持 kJ/kcal 及营养素 g/mg/ug 换算。新增要求名称和热量；更新只写入识别到的营养，不清空缺项，禁止重量与体积互转。调用失败或截图信息不足时不写入。不自动匹配食物，不保存原图。重复创建可能产生多个食物。",
+        "operationId": "patch_food_from_image",
+        "tags": [
+          "foods"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodImageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回实际保存后的食物",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Food"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "description": "截图缺少必要信息或基准与所选食物不同，未写入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "图片识别服务失败，未写入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2841,7 +2974,9 @@
                   "bad_request",
                   "not_found",
                   "internal_error",
-                  "agent_error"
+                  "agent_error",
+                  "food_image_incomplete",
+                  "food_image_failed"
                 ]
               },
               "message": {
@@ -3032,6 +3167,23 @@
             "format": "date-time"
           }
         }
+      },
+      "FoodImageInput": {
+        "type": "object",
+        "required": [
+          "image_data_url"
+        ],
+        "properties": {
+          "image_data_url": {
+            "type": "string",
+            "description": "单张 PNG、JPEG 或 WebP 图片的 data URL；例如 data:image/png;base64,...。图片不持久化。"
+          },
+          "name": {
+            "type": "string",
+            "description": "可选，非空时优先使用此名称；省略或空白时使用识别名称，更新且未识别名称时保留原名称。"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "responses": {

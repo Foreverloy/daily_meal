@@ -17,6 +17,7 @@ import (
 
 func writeError(c *gin.Context, err error) {
 	var dateError *time.ParseError
+	var imageError service.FoodImageError
 	if errors.As(err, &dateError) {
 		badRequest(c, err)
 		return
@@ -24,6 +25,11 @@ func writeError(c *gin.Context, err error) {
 	status, code, message := http.StatusInternalServerError, "internal_error", "服务器内部错误"
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		status, code, message = http.StatusNotFound, "not_found", "资源不存在"
+	} else if errors.As(err, &imageError) {
+		status, code, message = http.StatusUnprocessableEntity, "food_image_incomplete", imageError.Error()
+	} else if errors.Is(err, agent.ErrRecognition) {
+		status, code, message = http.StatusBadGateway, "food_image_failed", "截图识别失败，未保存食物，请重试或手动填写。"
+		slog.Error("food recognition failed", "error", err)
 	} else if errors.Is(err, agent.ErrCall) {
 		status, code, message = http.StatusBadGateway, "agent_error", "对话未完成，部分操作可能已经保存，请先查看相关饮食数据。"
 		slog.Error("chat failed", "error", err)

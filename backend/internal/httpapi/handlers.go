@@ -86,6 +86,28 @@ func (h *Handler) food(c *gin.Context) {
 	respond(c, http.StatusOK, v, err)
 }
 
+func (h *Handler) createFoodFromImage(c *gin.Context) {
+	var in service.FoodImageInput
+	if !decode(c, &in) {
+		return
+	}
+	v, err := h.service.ImportFoodImage(c.Request.Context(), 0, in)
+	respond(c, http.StatusCreated, v, err)
+}
+
+func (h *Handler) patchFoodFromImage(c *gin.Context) {
+	id, ok := idParam(c)
+	if !ok {
+		return
+	}
+	var in service.FoodImageInput
+	if !decode(c, &in) {
+		return
+	}
+	v, err := h.service.ImportFoodImage(c.Request.Context(), id, in)
+	respond(c, http.StatusOK, v, err)
+}
+
 func (h *Handler) patchFood(c *gin.Context) {
 	id, ok := idParam(c)
 	if !ok {
