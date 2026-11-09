@@ -50,7 +50,11 @@ func (s *Service) recipeView(recipe *model.Recipe) (*RecipeView, error) {
 		})
 		parts = append(parts, nutrition.Scale(row.Food.NutritionPer100, row.Quantity))
 	}
-	result.NutritionTotals = nutrition.Sum(parts...)
+	catalog, err := s.store.Nutrients()
+	if err != nil {
+		return nil, err
+	}
+	result.NutritionTotals = nutrition.Sum(catalog.Keys(), parts...)
 	return result, nil
 }
 

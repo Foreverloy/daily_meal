@@ -87,8 +87,10 @@ type Food struct {
 	Name string `json:"name"`
 	// BasisUnit 是营养基准单位，只使用 g 或 ml；ml 表示下面的值均按每 100ml 计。
 	BasisUnit string `json:"basis_unit"`
-	// NutritionPer100 是每 100 个基准单位的营养，如 {"energy_kcal":60,"protein_g":3.2}。
-	NutritionPer100 nutrition.Values `json:"nutrition_per_100" gorm:"column:nutrition_per_100;serializer:json;type:jsonb"`
+	// NutritionPer100 由关联记录组装为接口数据，如 {"energy_kcal":60,"protein_g":3.2}，不再独立存列。
+	NutritionPer100 nutrition.Values `json:"nutrition_per_100" gorm:"-"`
+	// Nutrients 是实际保存的食物营养含量，通过 FoodID 关联；接口仍返回上面的 map。
+	Nutrients []FoodNutrient `json:"-" gorm:"foreignKey:FoodID"`
 	// Favorite 是食物库的收藏状态，不参与营养计算或饮食记录快照。
 	Favorite bool `json:"favorite"`
 }

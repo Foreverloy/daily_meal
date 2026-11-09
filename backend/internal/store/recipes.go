@@ -19,10 +19,20 @@ func (s *Store) Recipes(q string, page, size int) ([]model.Recipe, int64, error)
 	return items, total, err
 }
 
+// Ingredients 加载菜品食材及其营养关联，供 Service 计算当前菜品营养。
 func (s *Store) Ingredients(recipeID int64) ([]model.RecipeIngredient, error) {
 	items := []model.RecipeIngredient{}
-	err := s.db.Preload("Food").Where("recipe_id = ?", recipeID).Order("id ASC").Find(&items).Error
-	return items, err
+	if err := s.db.Preload("Food.Nutrients").Where("recipe_id = ?", recipeID).Order("id ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	catalog, err := s.Nutrients()
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Food.LoadNutrition(catalog)
+	}
+	return items, nil
 }
 
 func (s *Store) CreateRecipe(recipe *model.Recipe) error {

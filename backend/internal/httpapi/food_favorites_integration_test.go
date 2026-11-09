@@ -230,6 +230,7 @@ func TestIntegrationFoodFavoritesDoNotChangeMealsOrRecipes(t *testing.T) {
 	}
 }
 
+// TestIntegrationFoodFavoritesMigration 验证旧食物跨收藏及营养素迁移后保留数据。
 func TestIntegrationFoodFavoritesMigration(t *testing.T) {
 	f := setup(t)
 	db, err := f.db.DB()
@@ -243,13 +244,18 @@ func TestIntegrationFoodFavoritesMigration(t *testing.T) {
 	if !f.db.Migrator().HasTable("foods") || f.db.Migrator().HasColumn("foods", "favorite") {
 		t.Fatal("rolling back favorites must retain foods and remove only the favorite column")
 	}
-	legacy := model.Food{Name: "迁移前的米饭", BasisUnit: "g", NutritionPer100: nutrition.Values{"energy_kcal": nutrition.Number(100), "protein_g": nutrition.Number(2)}.Normalized()}
-	if err := f.db.Omit("Favorite").Create(&legacy).Error; err != nil {
+	legacy := struct {
+		model.Base
+		Name            string
+		BasisUnit       string
+		NutritionPer100 nutrition.Values `gorm:"column:nutrition_per_100;serializer:json;type:jsonb"`
+	}{Name: "迁移前的米饭", BasisUnit: "g", NutritionPer100: nutrition.Values{"energy_kcal": nutrition.Number(100), "protein_g": nutrition.Number(2)}}
+	if err := f.db.Table("foods").Create(&legacy).Error; err != nil {
 		t.Fatal(err)
 	}
-	var before model.Food
+	before := legacy
 	// 旧版本只读取当时存在的列，避免跨 schema 变更复用 SELECT * 的缓存计划。
-	if err := f.db.Select("id", "name", "basis_unit", "nutrition_per_100", "created_at", "updated_at").First(&before, legacy.ID).Error; err != nil {
+	if err := f.db.Table("foods").Select("id", "name", "basis_unit", "nutrition_per_100", "created_at", "updated_at").First(&before, legacy.ID).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := migrations.Run(db, "up"); err != nil {
@@ -260,7 +266,9 @@ func TestIntegrationFoodFavoritesMigration(t *testing.T) {
 		t.Fatalf("existing food did not receive database default false: count=%d err=%v", count, err)
 	}
 	got := response[model.Food](t, f, "GET", path("foods", legacy.ID), nil, 200)
-	if got.Favorite || !reflect.DeepEqual(got, before) {
+	catalog := f.nutrientCatalog(t)
+	expected := model.Food{Base: before.Base, Name: before.Name, BasisUnit: before.BasisUnit, NutritionPer100: before.NutritionPer100.Normalized(catalog.Keys())}
+	if got.Favorite || !reflect.DeepEqual(got, expected) {
 		t.Fatalf("migration changed existing food data: got %+v want %+v", got, before)
 	}
 	// 迁移后能正常收藏，避免只验证列存在却遗漏 ORM 列名不一致。

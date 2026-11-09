@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Daily Meal V1 API",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "个人饮食管理后端，学习优先的业务主干实现。业务时区默认 Asia/Shanghai，营养计算由 Go 完成，未知值保留 null；不含登录或多用户。2.0.0 为破坏性契约版本，路由仍为 /api/v1：移除严格业务校验和 Idempotency-Key 创建去重，重复创建可能产生多条记录；不保证跨操作事务或并发一致性。请求 schema 中的必填、范围、枚举及组合表示调用方应遵守的合法输入约定，不是服务逐项校验的承诺；保留语法、类型与参数解析错误。未知请求结构字段忽略，营养对象的键由调用方按已支持的指标提交。当前尚未覆盖产品文档中的校验、配方原子保存和 Agent 重试去重验收要求。"
   },
   "servers": [
@@ -1957,6 +1957,31 @@
           }
         ]
       }
+    },
+    "/api/v1/nutrients": {
+      "get": {
+        "summary": "查询营养素目录",
+        "operationId": "get_api_v1_nutrients",
+        "tags": [
+          "nutrients"
+        ],
+        "description": "返回数据库初始化的常见营养素、名称和标准单位，按 id 升序。所有食物共享同一目录。",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutrientList"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2030,7 +2055,13 @@
           "vitamin_c_mg",
           "vitamin_d_ug"
         ],
-        "additionalProperties": false
+        "additionalProperties": {
+          "type": "number",
+          "format": "double",
+          "nullable": true,
+          "minimum": 0
+        },
+        "description": "营养指标来自 GET /api/v1/nutrients，键为 code + \"_\" + unit，例如 protein_g、dietary_fiber_g、potassium_mg。含量按每 100g/ml，null 表示未知，0 表示已知为零；原有字段名保持不变。历史快照保留记录时的指标，新指标不会回填历史。调用方仅提交目录内指标，热量不可为空。"
       },
       "NutritionInput": {
         "type": "object",
@@ -2094,7 +2125,13 @@
         "required": [
           "energy_kcal"
         ],
-        "additionalProperties": true
+        "additionalProperties": {
+          "type": "number",
+          "format": "double",
+          "nullable": true,
+          "minimum": 0
+        },
+        "description": "营养指标来自 GET /api/v1/nutrients，键为 code + \"_\" + unit，例如 protein_g、dietary_fiber_g、potassium_mg。含量按每 100g/ml，null 表示未知，0 表示已知为零；原有字段名保持不变。历史快照保留记录时的指标，新指标不会回填历史。调用方仅提交目录内指标，热量不可为空。"
       },
       "NutritionPatch": {
         "type": "object",
@@ -2156,7 +2193,13 @@
           }
         },
         "required": [],
-        "additionalProperties": true
+        "additionalProperties": {
+          "type": "number",
+          "format": "double",
+          "nullable": true,
+          "minimum": 0
+        },
+        "description": "营养指标来自 GET /api/v1/nutrients，键为 code + \"_\" + unit，例如 protein_g、dietary_fiber_g、potassium_mg。含量按每 100g/ml，null 表示未知，0 表示已知为零；原有字段名保持不变。历史快照保留记录时的指标，新指标不会回填历史。调用方仅提交目录内指标，热量不可为空。"
       },
       "Amount": {
         "type": "object",
@@ -2215,7 +2258,10 @@
           "vitamin_c_mg",
           "vitamin_d_ug"
         ],
-        "additionalProperties": false
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Amount"
+        },
+        "description": "按营养素目录汇总；历史快照缺少新指标时视为未知并标记不完整，无饮食记录时为已知零。记录本身的合计保留当时指标。"
       },
       "GoalInput": {
         "type": "object",
@@ -3184,6 +3230,49 @@
           }
         },
         "additionalProperties": false
+      },
+      "Nutrient": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "unit"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "code": {
+            "type": "string",
+            "description": "稳定的营养素编码，例如 protein；与 unit 用下划线拼接得到营养接口键。"
+          },
+          "name": {
+            "type": "string",
+            "description": "展示名称；RAE、总叶酸等口径明确区分。"
+          },
+          "unit": {
+            "type": "string",
+            "description": "标准单位，初始化为 kcal、g、mg 或 ug；ug 表示微克。单位与编码确定后保持稳定，修改需要连同数值及历史语义迁移。"
+          }
+        }
+      },
+      "NutrientList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Nutrient"
+            }
+          }
+        }
       }
     },
     "responses": {

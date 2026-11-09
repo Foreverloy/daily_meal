@@ -21,8 +21,10 @@ type FoodImageInput struct {
 // FoodImageError 表示图片信息不足或与所选食物基准不一致，本次没有写入。
 type FoodImageError string
 
+// Error 返回可向调用方展示的识别信息错误。
 func (e FoodImageError) Error() string { return string(e) }
 
+// ImportFoodImage 识别截图，按数据库定义换算营养单位，再创建或更新食物。
 func (s *Service) ImportFoodImage(ctx context.Context, id int64, in FoodImageInput) (*model.Food, error) {
 	var existing *model.Food
 	var err error
@@ -41,7 +43,11 @@ func (s *Service) ImportFoodImage(ctx context.Context, id int64, in FoodImageInp
 	if err != nil {
 		return nil, err
 	}
-	food, err := foodFromRecognition(reading)
+	catalog, err := s.store.Nutrients()
+	if err != nil {
+		return nil, err
+	}
+	food, err := foodFromRecognition(reading, catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +70,8 @@ func (s *Service) ImportFoodImage(ctx context.Context, id int64, in FoodImageInp
 	})
 }
 
-func foodFromRecognition(reading agent.FoodRecognition) (FoodInput, error) {
+// foodFromRecognition 根据营养素目录将原始读数换算为每 100g/ml 的标准单位含量。
+func foodFromRecognition(reading agent.FoodRecognition, catalog model.Nutrients) (FoodInput, error) {
 	food := FoodInput{Name: strings.TrimSpace(reading.Name), NutritionPer100: nutrition.Values{}}
 	if reading.BasisQuantity <= 0 {
 		return food, FoodImageError("未识别到明确的营养份量，请使用标明每 100g、每 100ml 或具体份量的截图。")
@@ -78,11 +85,17 @@ func foodFromRecognition(reading agent.FoodRecognition) (FoodInput, error) {
 		return food, FoodImageError("未识别到重量或体积单位，请使用带 g、kg、ml 或 L 的截图。")
 	}
 	factor := 100 / nutrition.Quantity(reading.BasisQuantity, reading.BasisUnit)
+	definitions := make(map[string]model.Nutrient, len(catalog))
+	for _, nutrient := range catalog {
+		definitions[nutrient.Code] = nutrient
+	}
 	for _, item := range reading.Nutrients {
-		var key string
-		var value float64
-		if item.Key == "energy" {
-			key, value = "energy_kcal", item.Value
+		nutrient, ok := definitions[item.Key]
+		if !ok {
+			return food, FoodImageError("识别结果包含不支持的营养指标，请重试或手动填写。")
+		}
+		value := item.Value
+		if nutrient.Unit == "kcal" {
 			switch item.Unit {
 			case "kcal":
 			case "kJ":
@@ -91,25 +104,16 @@ func foodFromRecognition(reading agent.FoodRecognition) (FoodInput, error) {
 				return food, FoodImageError("未识别到热量单位，请使用标明 kcal 或 kJ 的截图。")
 			}
 		} else {
-			// 所有质量单位先换成 g，再换到食物库约定的营养素单位。
+			// 同一种营养素只做 g、mg、ug 的质量换算；不推断 IU、RAE 或 DFE 的口径。
 			units := map[string]float64{"g": 1, "mg": 0.001, "ug": 0.000001}
-			unit, ok := units[item.Unit]
-			if !ok {
+			from, fromOK := units[item.Unit]
+			to, toOK := units[nutrient.Unit]
+			if !fromOK || !toOK {
 				return food, FoodImageError("未识别到营养含量单位，请使用带 g、mg 或 μg 的截图。")
 			}
-			value = item.Value * unit
-			switch item.Key {
-			case "protein", "carbohydrate", "fat":
-				key = item.Key + "_g"
-			case "sodium", "calcium", "vitamin_c":
-				key, value = item.Key+"_mg", value*1000
-			case "vitamin_d":
-				key, value = "vitamin_d_ug", value*1000000
-			default:
-				return food, FoodImageError("识别结果包含不支持的营养指标，请重试或手动填写。")
-			}
+			value *= from / to
 		}
-		food.NutritionPer100[key] = nutrition.Number(value * factor)
+		food.NutritionPer100[nutrient.Key()] = nutrition.Number(value * factor)
 	}
 	if len(food.NutritionPer100) == 0 {
 		return food, FoodImageError("没有识别到可保存的营养含量，请换一张清晰截图或手动填写。")

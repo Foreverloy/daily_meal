@@ -29,11 +29,17 @@ type Summary struct {
 	Comparison map[string]Comparison `json:"comparison"`
 }
 
+// DailySummary 按当前营养素目录汇总历史记录，旧快照缺少的指标按未知处理。
 func (s *Service) DailySummary(rawDate string) (*Summary, error) {
 	date, err := ParseDate(rawDate)
 	if err != nil {
 		return nil, err
 	}
+	catalog, err := s.store.Nutrients()
+	if err != nil {
+		return nil, err
+	}
+	keys := catalog.Keys()
 	result := &Summary{Date: date, Meals: map[string]nutrition.Totals{}, Comparison: map[string]Comparison{}}
 	// TODO：目标和记录分开读取，暂不保证并发修改时来自同一数据库快照。
 	result.Goal, err = s.resolveGoal(date)
@@ -51,10 +57,10 @@ func (s *Service) DailySummary(rawDate string) (*Summary, error) {
 		byMeal[entry.MealType] = append(byMeal[entry.MealType], entry.NutritionTotals)
 	}
 	for meal, parts := range byMeal {
-		result.Meals[meal] = nutrition.Sum(parts...)
+		result.Meals[meal] = nutrition.Sum(keys, parts...)
 	}
 	// 直接汇总记录，避免空餐的零把全天未知营养变成已知零。
-	result.NutritionTotals = nutrition.Sum(all...)
+	result.NutritionTotals = nutrition.Sum(keys, all...)
 	for _, key := range []string{"energy_kcal", "protein_g", "carbohydrate_g", "fat_g"} {
 		intake := result.NutritionTotals[key]
 		comparison := Comparison{Intake: intake}

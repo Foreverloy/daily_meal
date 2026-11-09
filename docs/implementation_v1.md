@@ -65,9 +65,9 @@ API 启动按配置读取、数据库连接、Store/Service/Router 组装、启�
 - `1kg = 1000g`，`1L = 1000ml`；数量必须大于 0，不跨重量、体积换算。
 - 不支持个、份、碗等食物用量单位。鸡蛋按 g，牛奶可以按 ml。
 - 食物应有可辨别的名称，例如生米、熟米饭、某品牌牛奶，选择时使用食物 ID。
-- 营养数据统一保存在 `nutrition_per_100` 中，热量必填，其他营养指标可为空，已知数值不得为负。
-- 固定字段包括 `energy_kcal`、`protein_g`、`carbohydrate_g`、`fat_g`；可选字段包括 `sodium_mg`、`calcium_mg`、`vitamin_c_mg`、`vitamin_d_ug` 等，按实际数据逐步扩展。
-- 营养字段及单位由代码统一定义。食物的用量单位不改变营养素单位，例如牛奶用 ml、蛋白质用 g、钠用 mg。
+- API 继续通过 `nutrition_per_100` 传递营养数据；数据库使用 `nutrients` 定义指标、`food_nutrients` 保存含量。热量必填，其他营养指标可为空，已知数值不得为负。
+- 营养素目录初始化 38 项常见指标，覆盖能量、宏量营养素、糖、膳食纤维、脂肪细项、水分、矿物质及维生素。完整定义见迁移 `00005_normalize_food_nutrients.sql`；调用方通过 `GET /api/v1/nutrients` 读取。
+- 营养素定义包含 `code`、中文名称和标准 `unit`，接口键为 `code + "_" + unit`，例如 `protein_g`。食物用量单位不改变营养素单位，例如牛奶用 ml、蛋白质用 g、钠用 mg。编码和单位保持稳定；改变单位必须同时迁移含量和历史语义，本次不提供目录修改接口。
 - 食物热量保存录入值，不强制使用三大营养素反推并覆盖。
 
 ```text
@@ -104,23 +104,34 @@ V1 通过接口维护结构化数据。以后导入截图或公共数据时，�
 - 每个营养指标独立汇总，返回 `known_total`（已知部分合计）与 `complete`（数据是否完整）。
 - 有摄入但该指标全部未知时，`known_total` 为 `null`；部分已知时返回已知部分的合计，`complete` 为 `false`。
 - 没有饮食记录时，摄入合计为 0，`complete` 为 `true`。
-- 默认统计代码已支持的营养指标，包括全部缺失的指标，避免将其静默隐藏。
+- 默认按数据库营养素目录统计全部指标，包括全部缺失的指标。旧快照未记录的新指标按未知处理，不根据当前食物回填历史。
 - 热量和三大营养素返回目标、摄入和剩余额度；只有目标存在且摄入完整时才计算剩余额度，否则返回 `null`。
 - 剩余额度可以为负，表示超出目标。其他营养素只返回摄入与完整性。
 - 数量和营养计算保留中间精度，展示时再格式化；不逐项提前取整。
 
 ## 4. 数据模型
 
-使用以下 6 张业务表。表均包含主键及创建、更新时间；日期字段使用 PostgreSQL `DATE`，数量及目标数值使用 `NUMERIC`，营养对象和快照使用 `JSONB`。
+核心业务表如下。日期字段使用 PostgreSQL `DATE`，含量、用量及目标数值使用 `NUMERIC`；历史快照和营养合计继续使用 `JSONB`。营养素目录只保存定义字段，食物含量以 `(food_id, nutrient_id)` 为联合主键，其余核心业务表沿用主键及创建、更新时间。
 
 | 表 | 核心字段 | 用途 |
 | --- | --- | --- |
 | `goal_settings` | `effective_on`、`energy_kcal`、三个供能百分比 | 默认目标的生效记录，`effective_on` 唯一 |
 | `daily_goals` | `date`、`energy_kcal`、三个供能百分比 | 某日的完整覆盖目标，`date` 唯一 |
-| `foods` | `name`、`basis_unit`、`nutrition_per_100` | 食物营养基准 |
+| `foods` | `name`、`basis_unit`、`favorite` | 食物名称、营养基准及收藏状态 |
+| `nutrients` | `code`、`name`、`unit` | 所有食物共用的营养素定义，`code` 唯一 |
+| `food_nutrients` | `food_id`、`nutrient_id`、`amount_per_100` | 每 100g/ml 的营养含量；NULL 是未知、0 是已知为零 |
 | `recipes` | `name` | 菜品模板 |
 | `recipe_ingredients` | `recipe_id`、`food_id`、`quantity` | 已归一化为该食物 g/ml 基准的食材用量 |
 | `meal_entries` | `date`、`meal_type`、`item_type`、`food_id`、`recipe_id`、`quantity`、`snapshot`、`nutrition_totals` | 实际饮食及历史快照 |
+
+营养素关联的读写路径：
+
+- 创建：`CreateFood → 读取目录 → Food.SetNutrition → Store.CreateFood`，GORM 创建食物及含量关联。
+- 查询：Store 预加载含量关联，再由 `Food.LoadNutrition` 按目录组装 `nutrition_per_100`。新增目录项尚无关联时返回未知。
+- 更新：Service 只合并提交的营养字段；`FullSaveAssociations` 使 GORM 同时更新关联中的数值、0 和 NULL。沿用 GORM 默认写入事务，不新增手动事务包装。
+- 菜品及每日汇总读取目录，再将指标键传给纯计算函数；热量与三大营养素的目标规则继续使用对应的四项指标。
+- 迁移 5 先初始化目录、将旧食物 JSONB 含量迁入关联表，再删除旧列；历史饮食快照不重写。Down 将当前所有关联项重建为 JSONB，包括扩展指标。
+- 原 JSONB 列的热量非空约束随拆列移除，Service 创建及更新流程保留这项要求，失败仍直接返回错误。其他既有数据库约束继续生效。
 
 具体约定：
 
@@ -136,12 +147,13 @@ V1 通过接口维护结构化数据。以后导入截图或公共数据时，�
 
 ## 5. HTTP API
 
-接口统一以 `/api/v1` 开头，使用 JSON。OpenAPI 契约版本升为 `2.0.0`，表示移除严格校验和创建幂等的破坏性变化，路由前缀保持不变。列表接口返回 `items`，详情接口返回对象。食物和菜品支持 `q` 名称搜索及 `page`、`page_size` 分页，默认第 1 页、每页 20 条；调用方负责分页范围，服务不再检查每页最多 100 条。
+接口统一以 `/api/v1` 开头，使用 JSON。OpenAPI 当前契约版本为 `2.3.0`，新增营养素目录及可扩展的营养对象；原 `2.0.0` 移除严格校验和创建幂等的行为继续保留，路由前缀保持不变。列表接口返回 `items`，详情接口返回对象。食物和菜品支持 `q` 名称搜索及 `page`、`page_size` 分页，默认第 1 页、每页 20 条；调用方负责分页范围，服务不再检查每页最多 100 条。
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
 | GET / PUT | `/goal-settings/default` | 查询或更新当前默认目标；首次查询可返回 `null` |
 | GET / PUT / DELETE | `/daily-goals/{date}` | 查询该日最终目标、设置覆盖、删除覆盖；查询说明来源 `default` / `override` / `none` |
+| GET | `/nutrients` | 返回营养素定义列表，包含 id、code、name、unit |
 | GET / POST | `/foods` | 搜索列表、创建食物 |
 | GET / PATCH | `/foods/{id}` | 食物详情、修改名称或营养数据 |
 | GET / POST | `/recipes` | 搜索列表、创建菜品 |
@@ -265,3 +277,11 @@ V1 通过接口维护结构化数据。以后导入截图或公共数据时，�
 - Agent 将已收到的工具结果随成功或失败响应交回 Go。中断时可能缺失执行结果，相关 TODO 保留在 `service/chat.go`。
 
 本节记录用户确认的单轮实现范围，不修改产品文档或产品审查状态。
+
+## 9. 营养素目录与本次重构边界
+
+本次按用户确认完成 Go 后端的营养素对象、食物关联表和常见指标初始化。种子数据参考 [USDA / NHANES 营养指标及单位](https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DRXFCD_L.htm) 与 [FDA 常见营养标签指标](https://www.fda.gov/food/nutrition-facts-label/daily-value-nutrition-and-supplement-facts-labels)，采用项目统一计量口径，不包含推荐摄入量。维生素 A（RAE）、维生素 E（α-生育酚）及总叶酸使用明确编码；不将 IU、RE、DFE 等口径直接当作 g/mg/ug 换算。
+
+Go 截图转换从目录查找营养素及标准单位，支持 kcal/kJ 与 g/mg/ug 换算，保持未识别指标不覆盖、明确零值可保存的行为。Python Agent 的识别 schema 和前端录入展示仍限定原有 8 项；本次仅完成 Go 后端，完整新目录可通过 API 使用，三端展示和识别扩展需在后续任务同步。
+
+相关 TODO 继续保留：食物并发修改可能相互覆盖、营养计算尚未检查溢出、截图重复导入未去重。总产品文档及后端产品文档本次不修改，也不改变其审查状态。

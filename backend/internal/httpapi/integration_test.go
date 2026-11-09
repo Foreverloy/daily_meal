@@ -280,11 +280,12 @@ func TestIntegrationGoalHistory(t *testing.T) {
 	f.request(t, "GET", "/api/v1/daily-goals/2026-02-29", nil, 400)
 }
 
+// TestIntegrationFoodsAndRecipes 验证食物关联含量与菜品计算的完整调用链。
 func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	f := setup(t)
 	rice := f.food(t, "熟米饭", "g", nutrition.Values{"energy_kcal": nutrition.Number(100), "protein_g": nutrition.Number(2), "sodium_mg": nutrition.Number(0)})
 	milk := f.food(t, "牛奶", "ml", nutrition.Values{"energy_kcal": nutrition.Number(60), "protein_g": nil, "sodium_mg": nil})
-	if rice.NutritionPer100["sodium_mg"] == nil || *rice.NutritionPer100["sodium_mg"] != 0 || rice.NutritionPer100["fat_g"] != nil || len(rice.NutritionPer100) != len(nutrition.Keys) {
+	if rice.NutritionPer100["sodium_mg"] == nil || *rice.NutritionPer100["sodium_mg"] != 0 || rice.NutritionPer100["fat_g"] != nil || len(rice.NutritionPer100) != len(f.nutrientCatalog(t)) {
 		t.Fatalf("wrong nutrition: %v", rice.NutritionPer100)
 	}
 	patched := response[model.Food](t, f, "PATCH", path("foods", rice.ID), map[string]any{"nutrition_per_100": map[string]any{"protein_g": nil, "fat_g": 0}}, 200)
@@ -321,7 +322,7 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	f.request(t, "GET", "/api/v1/foods/99999", nil, 404)
 }
 
-// TestIntegrationSnapshotsAndSummary 验证历史快照、用量修改以及三餐和全天营养汇总。
+// TestIntegrationSnapshotsAndSummary 验证历史快照、用量修改以及按目录计算的三餐和全天汇总。
 func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 	f := setup(t)
 	historical := model.GoalSetting{EffectiveOn: "2026-09-08", GoalValues: model.GoalValues{EnergyKcal: 2000, ProteinPercent: 30, CarbohydratePercent: 40, FatPercent: 30}}
@@ -394,7 +395,7 @@ func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 	}
 	f.request(t, "GET", path("meal-entries", foodEntry.ID), nil, 404)
 	empty := response[service.Summary](t, f, "GET", "/api/v1/daily-summary?date=2026-09-08", nil, 200)
-	for _, k := range nutrition.Keys {
+	for _, k := range f.nutrientCatalog(t).Keys() {
 		amount(t, empty.NutritionTotals[k], nutrition.Number(0), true)
 	}
 	entries := response[struct {

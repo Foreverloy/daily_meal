@@ -8,6 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// nutrients 返回营养素目录及其标准单位。
+func (h *Handler) nutrients(c *gin.Context) {
+	v, err := h.service.Nutrients()
+	respond(c, http.StatusOK, gin.H{"items": v}, err)
+}
+
 func (h *Handler) chat(c *gin.Context) {
 	var in service.ChatInput
 	if !decode(c, &in) {

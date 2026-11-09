@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 
 	"dailymeal/backend/internal/model"
@@ -30,7 +31,16 @@ type FoodPatch struct {
 // CreateFood 新建未收藏的食物，收藏需要用户通过 PATCH 主动设置。
 func (s *Service) CreateFood(in FoodInput) (*model.Food, error) {
 	// TODO：暂未校验名称、营养基准和营养数值，调用方按接口约定提交。
-	food := &model.Food{Name: strings.TrimSpace(in.Name), BasisUnit: in.BasisUnit, NutritionPer100: in.NutritionPer100.Normalized()}
+	// 原 foods JSONB 列要求热量非空，拆表后在此保留同一要求。
+	if in.NutritionPer100["energy_kcal"] == nil {
+		return nil, errors.New("food energy is required")
+	}
+	catalog, err := s.store.Nutrients()
+	if err != nil {
+		return nil, err
+	}
+	food := &model.Food{Name: strings.TrimSpace(in.Name), BasisUnit: in.BasisUnit}
+	food.SetNutrition(catalog, in.NutritionPer100)
 	return food, s.store.CreateFood(food)
 }
 
@@ -59,7 +69,14 @@ func (s *Service) PatchFood(id int64, in FoodPatch) (*model.Food, error) {
 		for k, v := range in.NutritionPer100.Value {
 			food.NutritionPer100[k] = v
 		}
-		food.NutritionPer100 = food.NutritionPer100.Normalized()
+		if food.NutritionPer100["energy_kcal"] == nil {
+			return nil, errors.New("food energy is required")
+		}
+		catalog, err := s.store.Nutrients()
+		if err != nil {
+			return nil, err
+		}
+		food.SetNutrition(catalog, food.NutritionPer100)
 	}
 	if in.Favorite.Set {
 		food.Favorite = in.Favorite.Value

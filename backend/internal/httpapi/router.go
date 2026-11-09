@@ -17,6 +17,7 @@ type Handler struct {
 	service *service.Service
 }
 
+// New 注册健康检查、接口文档及各业务路由。
 func New(svc *service.Service, ping func(context.Context) error, openAPI []byte) *gin.Engine {
 	r := gin.Default()
 	_ = r.SetTrustedProxies(nil)
@@ -31,6 +32,7 @@ func New(svc *service.Service, ping func(context.Context) error, openAPI []byte)
 	r.NoRoute(func(c *gin.Context) { writeError(c, gorm.ErrRecordNotFound) })
 	h := &Handler{service: svc}
 	a := r.Group("/api/v1")
+	a.GET("/nutrients", h.nutrients)
 	a.POST("/chat", h.chat)
 	a.GET("/goal-settings/default", h.defaultGoal)
 	a.PUT("/goal-settings/default", h.putDefaultGoal)
