@@ -39,11 +39,15 @@ func TestPatchPresence(t *testing.T) {
 	}
 }
 
+// TestFoodPatchFavoritePresence 验证收藏字段的省略、显式布尔值和类型错误能被区分。
 func TestFoodPatchFavoritePresence(t *testing.T) {
 	for _, tc := range []struct {
+		// name 是测试名称，body 是用于解析的 JSON 请求体。
 		name, body string
-		want       Field[bool]
-		invalid    bool
+		// want 是预期解析得到的字段状态，包含是否提交以及具体布尔值。
+		want Field[bool]
+		// invalid 表示该输入是否应触发 JSON 类型解析错误。
+		invalid bool
 	}{
 		{"omitted", `{}`, Field[bool]{}, false},
 		{"favorite", `{"favorite":true}`, Field[bool]{Set: true, Value: true}, false},

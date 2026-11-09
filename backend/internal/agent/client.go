@@ -17,19 +17,28 @@ import (
 
 var ErrCall = errors.New("Agent 调用失败")
 
+// Client 通过 HTTP 调用 Python Agent，对话和截图识别共用这份连接配置。
 type Client struct {
+	// Config 包含 Agent 地址，以及每次请求转交给 Agent 的模型配置。
 	Config config.AgentConfig
 }
 
+// Result 是 Agent 对话接口的返回内容，由 Service 写入对话执行记录。
 type Result struct {
-	Reply       string             `json:"reply"`
+	// Reply 是展示给用户的回复文本。
+	Reply string `json:"reply"`
+	// ToolResults 是 Agent 返回的工具执行结果；纯文本对话时为空列表。
 	ToolResults []model.ToolResult `json:"tool_results"`
 }
 
+// Chat 向 Python Agent 发送单轮消息，并返回回复及工具执行结果。
 func (c Client) Chat(ctx context.Context, message string) (Result, error) {
 	result := Result{ToolResults: []model.ToolResult{}}
+	// 匿名结构体描述请求体，json 标签把 Go 字段名映射为接口字段名。
 	body, err := json.Marshal(struct {
-		Message       string               `json:"message"`
+		// Message 是本轮用户输入的原文。
+		Message string `json:"message"`
+		// ModelSettings 是本轮交给 Agent 使用的模型配置，不写入对话记录。
 		ModelSettings config.ModelSettings `json:"model_settings"`
 	}{message, c.Config.ModelSettings})
 	if err != nil {
@@ -54,8 +63,11 @@ func (c Client) Chat(ctx context.Context, message string) (Result, error) {
 		return result, nil
 	}
 	if resp.StatusCode == http.StatusBadGateway {
+		// 只读取错误响应中需要保留的工具结果，其余上游错误内容不转发。
 		var failure struct {
+			// Error 对应响应 JSON 最外层的 error 对象。
 			Error struct {
+				// ToolResults 是 Agent 在失败响应中仍然返回的工具结果。
 				ToolResults []model.ToolResult `json:"tool_results"`
 			} `json:"error"`
 		}

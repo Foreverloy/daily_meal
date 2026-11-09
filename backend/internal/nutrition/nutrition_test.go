@@ -5,9 +5,12 @@ import (
 	"testing"
 )
 
+// TestQuantity 验证 g/kg、ml/L 输入用量到 g/ml 的换算。
 func TestQuantity(t *testing.T) {
 	for _, tc := range []struct {
-		name, unit  string
+		// name 是测试名称，unit 是输入用量的单位。
+		name, unit string
+		// input 是输入用量，want 是预期换算结果，如 0.125kg 对应 125g。
 		input, want float64
 	}{
 		{"grams", "g", 12.5, 12.5}, {"kilograms", "kg", .125, 125},

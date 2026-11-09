@@ -11,7 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type Handler struct{ service *service.Service }
+// Handler 负责解析 HTTP 请求和组织响应，把业务处理交给 Service。
+type Handler struct {
+	// service 是业务层入口，例如创建食物请求会调用 service.CreateFood。
+	service *service.Service
+}
 
 func New(svc *service.Service, ping func(context.Context) error, openAPI []byte) *gin.Engine {
 	r := gin.Default()

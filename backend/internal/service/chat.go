@@ -8,7 +8,9 @@ import (
 	"dailymeal/backend/internal/model"
 )
 
+// ChatInput 是前端提交的单轮对话请求，模型配置由 Go 从本地配置读取。
 type ChatInput struct {
+	// Message 是用户输入的文本，例如“蛋白质有什么作用？”。
 	Message string `json:"message"`
 }
 

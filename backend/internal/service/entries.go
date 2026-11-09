@@ -5,14 +5,23 @@ import (
 	"dailymeal/backend/internal/nutrition"
 )
 
+// EntryInput 是新建或修改饮食记录的参数；Field 记录字段是否提交，便于部分更新。
+// 例如食物用量可提交 {"quantity":0.2,"unit":"kg"}；菜品记录按整道菜计入。
 type EntryInput struct {
-	Date     Field[string]  `json:"date"`
-	MealType Field[string]  `json:"meal_type"`
-	ItemType Field[string]  `json:"item_type"`
-	FoodID   Field[int64]   `json:"food_id"`
-	RecipeID Field[int64]   `json:"recipe_id"`
+	// Date 是用餐日期，如 "2026-11-09"；新建时省略则取今天，更新时省略则保留原日期。
+	Date Field[string] `json:"date"`
+	// MealType 是餐次：breakfast（早）、lunch（中）、dinner（晚）。
+	MealType Field[string] `json:"meal_type"`
+	// ItemType 是记录类型：food 或 recipe，决定读取哪一种来源对象。
+	ItemType Field[string] `json:"item_type"`
+	// FoodID 是 food 类型对应的食物 ID。
+	FoodID Field[int64] `json:"food_id"`
+	// RecipeID 是 recipe 类型对应的菜品 ID。
+	RecipeID Field[int64] `json:"recipe_id"`
+	// Quantity 是食物用量，与 Unit 配合提交；菜品记录不使用此字段。
 	Quantity Field[float64] `json:"quantity"`
-	Unit     Field[string]  `json:"unit"`
+	// Unit 是食物输入用量的单位：g/kg 或 ml/L；保存前换算为 g/ml。
+	Unit Field[string] `json:"unit"`
 }
 
 func (s *Service) Entry(id int64) (*model.MealEntry, error) {

@@ -7,21 +7,32 @@ import (
 	"dailymeal/backend/internal/nutrition"
 )
 
+// IngredientInput 是配方中的一项食材输入，进入业务层后用量统一换算成 g/ml。
 type IngredientInput struct {
-	FoodID   int64   `json:"food_id"`
+	// FoodID 是食物库中已有食物的 ID。
+	FoodID int64 `json:"food_id"`
+	// Quantity 是与 Unit 搭配的用量，如 Quantity=0.2、Unit="kg" 表示 200g。
 	Quantity float64 `json:"quantity"`
-	Unit     string  `json:"unit"`
+	// Unit 是输入单位，支持 g/kg 或 ml/L，按约定须与食物的重量/体积基准同类。
+	Unit string `json:"unit"`
 }
 
+// RecipeInput 是新建或整体替换菜品配方的参数，更新时提交完整食材列表。
 type RecipeInput struct {
-	Name        string            `json:"name"`
+	// Name 是菜品名称，如“鸡胸肉沙拉”。
+	Name string `json:"name"`
+	// Ingredients 是整道菜的食材及用量，不按份数或成品重量拆分。
 	Ingredients []IngredientInput `json:"ingredients"`
 }
 
+// RecipeView 是菜品详情响应，使用当前食物库数据计算，不是历史饮食记录。
 type RecipeView struct {
+	// Recipe 嵌入菜品的 ID、名称和时间字段，JSON 中这些字段直接位于外层。
 	model.Recipe
-	Ingredients     []model.IngredientSnapshot `json:"ingredients"`
-	NutritionTotals nutrition.Totals           `json:"nutrition_totals"`
+	// Ingredients 是本次查询得到的食材详情，记餐时可复制到记录快照中。
+	Ingredients []model.IngredientSnapshot `json:"ingredients"`
+	// NutritionTotals 是整道菜各项食材的营养合计，保留缺失指标的不完整标记。
+	NutritionTotals nutrition.Totals `json:"nutrition_totals"`
 }
 
 // recipeView 用当前食材数据计算整道菜的营养，也供饮食记录生成快照。

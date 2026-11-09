@@ -10,9 +10,12 @@ import (
 	"dailymeal/backend/internal/nutrition"
 )
 
+// FoodImageInput 是通过一张截图新建或更新食物的请求参数。
 type FoodImageInput struct {
+	// ImageDataURL 是图片的 Base64 data URL，如 data:image/png;base64,...，不是文件路径。
 	ImageDataURL string `json:"image_data_url"`
-	Name         string `json:"name,omitempty"`
+	// Name 是用户填写的名称；非空时覆盖识别名称，省略或仅有空白时使用识别结果。
+	Name string `json:"name,omitempty"`
 }
 
 // FoodImageError 表示图片信息不足或与所选食物基准不一致，本次没有写入。

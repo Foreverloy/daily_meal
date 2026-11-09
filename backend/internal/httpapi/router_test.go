@@ -14,12 +14,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestTransportErrors 验证请求解析、路由和健康检查失败时返回的 HTTP 状态码。
 func TestTransportErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := New(nil, func(context.Context) error { return errors.New("postgres secret database details") }, openapi.Document)
 	for _, tc := range []struct {
+		// method、path、body 分别是请求方法、接口路径和 JSON 请求体文本。
 		method, path, body string
-		status             int
+		// status 是预期返回的 HTTP 状态码，如 400 表示请求解析失败。
+		status int
 	}{
 		{"POST", "/api/v1/foods", `[]`, 400},
 		{"POST", "/api/v1/foods", `{`, 400},

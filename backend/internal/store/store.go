@@ -8,7 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type Store struct{ db *gorm.DB }
+// Store 封装 PostgreSQL 数据读写，供 Service 调用。
+type Store struct {
+	// db 是 GORM 数据库句柄，通过它执行查询、插入、更新和删除。
+	db *gorm.DB
+}
 
 func New(db *gorm.DB) *Store { return &Store{db: db} }
 

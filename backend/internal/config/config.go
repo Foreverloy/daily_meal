@@ -7,9 +7,12 @@ import (
 	_ "time/tzdata"
 )
 
+// Config 保存 Go 服务启动时从环境变量读取的数据库和 HTTP 配置。
 type Config struct {
+	// DatabaseURL 是 PostgreSQL 连接串，来自 DATABASE_URL，如 postgres://localhost/daily_meal。
 	DatabaseURL string
-	HTTPAddr    string
+	// HTTPAddr 是监听地址，来自 HTTP_ADDR；默认 :8080 表示监听本机的 8080 端口。
+	HTTPAddr string
 }
 
 // Location is loaded from BUSINESS_TIMEZONE at startup; tzdata includes the default zone.

@@ -7,17 +7,24 @@ import (
 	"dailymeal/backend/internal/nutrition"
 )
 
+// FoodInput 是创建食物的参数；截图识别结果也会先转换成这个结构再保存。
 type FoodInput struct {
-	Name            string           `json:"name"`
-	BasisUnit       string           `json:"basis_unit"`
+	// Name 是食物名称，如“纯牛奶”。
+	Name string `json:"name"`
+	// BasisUnit 是营养基准单位：g 或 ml；如 ml 表示营养按每 100ml 输入。
+	BasisUnit string `json:"basis_unit"`
+	// NutritionPer100 是每 100g/100ml 的营养；未提供的指标在保存时补为未知值 nil。
 	NutritionPer100 nutrition.Values `json:"nutrition_per_100"`
 }
 
 // FoodPatch 只更新提供的字段；favorite=false 取消收藏，省略时保留原状态。
 type FoodPatch struct {
-	Name            Field[string]           `json:"name"`
+	// Name 是要替换的名称，省略时保留原名称。
+	Name Field[string] `json:"name"`
+	// NutritionPer100 按指标逐项合并，如 {"protein_g":0} 设为零，{"sodium_mg":null} 清为未知。
 	NutritionPer100 Field[nutrition.Values] `json:"nutrition_per_100"`
-	Favorite        Field[bool]             `json:"favorite"`
+	// Favorite 是收藏开关；Field 使省略该字段与明确传 false 能够区分。
+	Favorite Field[bool] `json:"favorite"`
 }
 
 // CreateFood 新建未收藏的食物，收藏需要用户通过 PATCH 主动设置。

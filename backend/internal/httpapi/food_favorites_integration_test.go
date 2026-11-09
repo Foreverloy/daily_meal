@@ -16,6 +16,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// TestIntegrationFoodFavorites 验证收藏切换、列表筛选与分页，以及重建服务后的数据保留。
 func TestIntegrationFoodFavorites(t *testing.T) {
 	f := setup(t)
 	milkA := f.food(t, "牛奶 A", "ml", nutrition.Values{"energy_kcal": nutrition.Number(60)})
@@ -41,9 +42,12 @@ func TestIntegrationFoodFavorites(t *testing.T) {
 	}
 	search := "q=" + url.QueryEscape("牛奶")
 	for _, tc := range []struct {
+		// name 是测试名称，query 是 URL 问号后面的筛选和分页参数。
 		name, query string
-		total       int64
-		ids         []int64
+		// total 是筛选后的总条数，不受分页限制影响。
+		total int64
+		// ids 是当前页预期返回的食物 ID，顺序也参与核对。
+		ids []int64
 	}{
 		{"all", "", 4, []int64{rice.ID, milkC.ID, milkB.ID, milkA.ID}},
 		{"false means all", "favorite=false", 4, []int64{rice.ID, milkC.ID, milkB.ID, milkA.ID}},
@@ -122,7 +126,9 @@ func TestIntegrationFoodFavorites(t *testing.T) {
 	f.db = db
 	f.router = New(service.New(repository), repository.Ping, openapi.Document)
 	for _, tc := range []struct {
-		id       int64
+		// id 是重建服务后再次查询的食物 ID。
+		id int64
+		// favorite 是预期从数据库读回的收藏状态。
 		favorite bool
 	}{{milkA.ID, false}, {milkB.ID, false}, {milkC.ID, true}} {
 		got := response[model.Food](t, f, "GET", path("foods", tc.id), nil, 200)
@@ -132,6 +138,7 @@ func TestIntegrationFoodFavorites(t *testing.T) {
 	}
 }
 
+// TestIntegrationFoodFavoriteErrors 验证收藏更新失败时的错误响应及原数据保留。
 func TestIntegrationFoodFavoriteErrors(t *testing.T) {
 	f := setup(t)
 	food := f.food(t, "牛奶", "ml", nutrition.Values{"energy_kcal": nutrition.Number(60)})
@@ -139,8 +146,11 @@ func TestIntegrationFoodFavoriteErrors(t *testing.T) {
 	f.request(t, "PATCH", endpoint, map[string]any{"favorite": true}, 200)
 	before := response[model.Food](t, f, "GET", endpoint, nil, 200)
 	for _, tc := range []struct {
-		name   string
-		body   map[string]any
+		// name 是该错误场景的测试名称。
+		name string
+		// body 是提交给 PATCH 接口的请求体。
+		body map[string]any
+		// status 是该场景预期返回的 HTTP 状态码。
 		status int
 	}{
 		{"string", map[string]any{"favorite": "false"}, 400},

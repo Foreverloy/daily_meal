@@ -12,6 +12,7 @@ import (
 	"dailymeal/backend/internal/nutrition"
 )
 
+// TestFoodImageCreatesAndUpdatesPersistedFood 验证截图转发、营养换算以及食物创建和更新的持久化。
 func TestFoodImageCreatesAndUpdatesPersistedFood(t *testing.T) {
 	f := setup(t)
 	reading := agent.FoodRecognition{Name: "截图牛奶", BasisQuantity: 250, BasisUnit: "ml",
@@ -22,7 +23,9 @@ func TestFoodImageCreatesAndUpdatesPersistedFood(t *testing.T) {
 		}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			ImageDataURL  string         `json:"image_data_url"`
+			// ImageDataURL 接收 Go 转发的截图内容，供模拟 Agent 核对。
+			ImageDataURL string `json:"image_data_url"`
+			// ModelSettings 接收模型配置，用于确认测试凭据被传给 Agent。
 			ModelSettings map[string]any `json:"model_settings"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

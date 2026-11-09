@@ -4,13 +4,21 @@ package nutrition
 
 var Keys = [...]string{"energy_kcal", "protein_g", "carbohydrate_g", "fat_g", "sodium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_ug"}
 
+// Values 按指标名保存营养值，单位写在 key 中，如 energy_kcal、protein_g。
+// 例如 Values{"protein_g": Number(0), "sodium_mg": nil} 表示蛋白质为零、钠含量未知。
+// 指针用于区分未知值 nil 和已知的 0；缺少某个 key 也按未知处理。
 type Values map[string]*float64
 
+// Amount 是一个营养指标的汇总结果，同时保留已知部分和数据完整性。
 type Amount struct {
+	// KnownTotal 是已知部分之和；全部未知时为 nil，无记录时的汇总为已知零。
 	KnownTotal *float64 `json:"known_total"`
-	Complete   bool     `json:"complete"`
+	// Complete 表示参与汇总的各项是否都已知；如 10g 加未知值，结果为 10 且 false。
+	Complete bool `json:"complete"`
 }
 
+// Totals 按营养指标名保存汇总结果，用于食材、整道菜、餐次和全天。
+// 例如 protein_g 对应的 KnownTotal 使用克，Complete 表示蛋白质数据是否完整。
 type Totals map[string]Amount
 
 func Number(v float64) *float64 { return &v }

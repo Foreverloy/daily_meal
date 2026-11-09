@@ -33,10 +33,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// fixture 汇集集成测试使用的 HTTP 路由、接口契约和独立测试数据库句柄。
 type fixture struct {
-	router   http.Handler
+	// router 接收 httptest 构造的请求，执行真实的 Handler → Service → Store 调用链。
+	router http.Handler
+	// contract 根据 OpenAPI 匹配接口，用于校验请求和响应格式。
 	contract routers.Router
-	db       *gorm.DB
+	// db 连接本次测试的随机 schema，用于准备数据和核对持久化结果。
+	db *gorm.DB
 }
 
 // Tests only accept a dedicated *_test database, then create/drop a random schema.
@@ -218,6 +222,7 @@ func TestIntegrationMigrations(t *testing.T) {
 	f.request(t, "GET", "/healthz", nil, 200)
 }
 
+// TestIntegrationGoalHistory 验证默认目标的历史生效日期和单日覆盖的优先级。
 func TestIntegrationGoalHistory(t *testing.T) {
 	f := setup(t)
 	if got := string(f.request(t, "GET", "/api/v1/goal-settings/default", nil, 200)); got != "null" {
@@ -246,8 +251,10 @@ func TestIntegrationGoalHistory(t *testing.T) {
 		t.Fatalf("wrong business date: %+v", current)
 	}
 	for _, tc := range []struct {
+		// date 是查询日期，source 是预期的目标来源（none、override 或 default）。
 		date, source string
-		energy       float64
+		// energy 是有目标时预期的热量值，单位为 kcal。
+		energy float64
 	}{{"2026-09-07", "none", 0}, {"2026-09-08", "override", 1800}, {"2026-09-09", "default", 2100}, {today.Format(time.DateOnly), "default", 2200}, {today.AddDate(0, 0, 1).Format(time.DateOnly), "default", 2200}} {
 		got := response[service.ResolvedGoal](t, f, "GET", "/api/v1/daily-goals/"+tc.date, nil, 200)
 		if got.Source != tc.source || (got.Goal != nil && got.Goal.EnergyKcal != tc.energy) {
@@ -314,6 +321,7 @@ func TestIntegrationFoodsAndRecipes(t *testing.T) {
 	f.request(t, "GET", "/api/v1/foods/99999", nil, 404)
 }
 
+// TestIntegrationSnapshotsAndSummary 验证历史快照、用量修改以及三餐和全天营养汇总。
 func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 	f := setup(t)
 	historical := model.GoalSetting{EffectiveOn: "2026-09-08", GoalValues: model.GoalValues{EnergyKcal: 2000, ProteinPercent: 30, CarbohydratePercent: 40, FatPercent: 30}}
@@ -390,6 +398,7 @@ func TestIntegrationSnapshotsAndSummary(t *testing.T) {
 		amount(t, empty.NutritionTotals[k], nutrition.Number(0), true)
 	}
 	entries := response[struct {
+		// Items 接收列表接口返回的饮食记录，用于核对日期和餐次筛选结果。
 		Items []model.MealEntry `json:"items"`
 	}](t, f, "GET", "/api/v1/meal-entries?date=2026-09-07&meal_type=dinner", nil, 200)
 	if len(entries.Items) != 1 || entries.Items[0].ID != recipeEntry.ID {
